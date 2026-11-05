@@ -27,7 +27,7 @@ var torches: Array = []         # tunda yonadigan OmniLight3D lar
 var _rain: CPUParticles3D
 var _snow: CPUParticles3D
 var _dust: CPUParticles3D
-var _azan: AudioStreamPlayer          # azon butun qal'ada baland eshitiladi (masofaga bog'liq emas)
+var _azan: AudioStreamPlayer3D        # azon masjid minorasidan: yaqinda baland, uzoqda past
 var _last_prayer := -1
 var _base_fog := 0.0006
 var _rng := RandomNumberGenerator.new()
@@ -50,8 +50,12 @@ func setup(world_env: WorldEnvironment, s: DirectionalLight3D, camera: Camera3D,
 	_rain = _particles(Color(0.75, 0.8, 0.9, 0.35), Vector3(0.015, 0.7, 0.015), 5000, 26.0, Vector3(0, -1, 0.08), 1.2)
 	_snow = _particles(Color(1, 1, 1, 0.85), Vector3(0.07, 0.07, 0.07), 5000, 3.0, Vector3(0.2, -1, 0.1), 6.0)
 	_dust = _particles(Color(0.78, 0.66, 0.46, 0.25), Vector3(0.25, 0.25, 0.25), 1600, 14.0, Vector3(1, -0.05, 0.3), 4.0)
-	_azan = AudioStreamPlayer.new()
-	_azan.volume_db = 0.0
+	_azan = AudioStreamPlayer3D.new()
+	_azan.unit_size = 28.0
+	_azan.max_distance = 900.0
+	_azan.max_db = 4.0
+	_azan.attenuation_filter_cutoff_hz = 6000.0
+	_azan.attenuation_filter_db = -10.0
 	add_child(_azan)
 	var st := _load_azan()
 	if st != null:
@@ -165,7 +169,12 @@ func _check_prayer() -> void:
 			_last_prayer = i
 			prayer.emit(PRAYERS[i][1])
 			if _azan.stream != null:
+				# ovoz masjid minorasidan (masjid bo'lmasa - ark tepasidan); boshida past, asta-sekin ko'tariladi
+				_azan.global_position = minaret_pos if minaret_pos != null else Vector3(0, 22, 0)
+				_azan.volume_db = -28.0
 				_azan.play()
+				var tw := _azan.create_tween()
+				tw.tween_property(_azan, "volume_db", 0.0, 7.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 
 
 func _apply() -> void:

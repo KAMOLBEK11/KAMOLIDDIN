@@ -143,6 +143,8 @@ static func count(p: Dictionary, t: String) -> int:
 
 static func cap(res: String, p: Dictionary) -> float:
 	var g := count(p, "granary")
+	if Game.TEST_MODE:
+		return 1e9
 	match res:
 		"oziq": return 400.0 + g * 600.0
 		"yogoch", "tosh": return 500.0 + g * 400.0
@@ -254,7 +256,7 @@ static func daily(p: Dictionary) -> void:
 			var prod: Dictionary = ECON[b["t"]]["prod"]
 			for r in prod:
 				if r != "oltin":      # oltin Game.province_income orqali kunlik daromadga qo'shiladi
-					Game.goods[r] = minf(cap(r, p), have(r) + prod[r])
+					Game.goods[r] = maxf(have(r), minf(cap(r, p), have(r) + prod[r]))
 	if not c["queue"].is_empty():
 		var q: Dictionary = c["queue"][0]
 		q["days_left"] = int(q["days_left"]) - 1

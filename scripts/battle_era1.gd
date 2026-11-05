@@ -781,7 +781,7 @@ func _slot(r: Dictionary, idx: int) -> Vector3:
 	if form in ["shield", "brace"]:
 		sp = 1.05          # zich saf: qalqonlar bir-biriga tegib turadi
 	elif form == "toshbaqa":
-		sp = 0.92          # toshbaqa: yelkama-yelka
+		sp = 1.3           # toshbaqa: zich, lekin qalqonlar bir-biriga kirmaydi
 	elif form == "loose":
 		sp = 3.2           # tarqoq saf: o'q kamroq tegadi
 	var row := idx / cols

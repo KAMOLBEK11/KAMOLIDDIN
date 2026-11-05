@@ -396,7 +396,14 @@ func order_move(gp: Vector3, shape := "") -> void:
 	var fwd: Vector3 = gp - cen
 	if fwd.length() < 1.0:
 		fwd = -c.cam.global_transform.basis.z
-	var sl := _slots(list.size(), Vector3(gp.x, 0, gp.z), fwd, shape if shape != "" else ("square" if list.size() > 14 else "line"))
+	# toshbaqa bo'lib turgan guruh - toshbaqa holicha birga yuradi (qalqonlar tushmaydi)
+	var tb := true
+	for n in list:
+		var r0 = (n as Node3D).get_meta("rts", null)
+		if r0 == null or not str(r0["stance"]).begins_with("tb_"):
+			tb = false
+			break
+	var sl: Array = _tb_slots(list.size(), Vector3(gp.x, 0, gp.z), fwd, false) if tb else _slots(list.size(), Vector3(gp.x, 0, gp.z), fwd, shape if shape != "" else ("square" if list.size() > 14 else "line"))
 	# kim qaysi joyga: oldingi qatordagilar oldinga (yaqin joyga yaqin askar)
 	var order := list.duplicate()
 	order.sort_custom(func(a, b): return (a as Node3D).position.distance_to(gp) < (b as Node3D).position.distance_to(gp))
@@ -404,10 +411,15 @@ func order_move(gp: Vector3, shape := "") -> void:
 	# saf bo'lib yurish: butun guruh uchun bitta yo'l topiladi, har askar o'z joyi bilan unga parallel yuradi
 	# (bitta ilondek qator bo'lib ketmaydi)
 	var lead := path(cen, Vector3(gp.x, 0, gp.z))
+	var grun := _plen(cen, lead) > 18.0 and not tb      # guruh bir xil tezlikda yuradi
+	if tb:
+		order = list.duplicate()
+		order.sort_custom(func(a, b): return int((a as Node3D).get_meta("fidx", 0)) < int((b as Node3D).get_meta("fidx", 0)))
 	for i in order.size():
 		var nd: Node3D = order[i]
+		var stc: String = ("tb_out" if sl[i][2] else "tb_in") if tb else "idle"
 		if lead.size() <= 1 or nd.get_meta("onwall", false):
-			if not _send(nd, sl[i][0], sl[i][1], "idle"):
+			if not _send(nd, sl[i][0], sl[i][1], stc):
 				fails += 1
 			continue
 		var off: Vector3 = nd.position - cen
@@ -440,10 +452,16 @@ func order_move(gp: Vector3, shape := "") -> void:
 			else:
 				pts.append(sl[i][0])
 		if not ok:
-			if not _send(nd, sl[i][0], sl[i][1], "idle"):
+			if not _send(nd, sl[i][0], sl[i][1], stc):
 				fails += 1
 			continue
-		_start(nd, [{"k": "walk", "pts": pts, "run": _plen(nd.position, pts) > 14.0}, {"k": "face", "yaw": sl[i][1]}, {"k": "stance", "s": "idle"}])
+		var keep_up: bool = tb and nd.get_meta("sp_up", false)
+		_start(nd, [{"k": "walk", "pts": pts, "run": grun}, {"k": "face", "yaw": sl[i][1]}, {"k": "stance", "s": stc}])
+		if tb:
+			nd.set_meta("fidx", i)
+			if keep_up:
+				nd.set_meta("sp_up", true)
+				ShieldPose.set_up(nd, true)
 	if fails > 0:
 		var outside: bool = c.stats.get("closed", false) and not c._inside(gp)
 		if outside and not gates_open():
@@ -487,6 +505,7 @@ func _plen(a: Vector3, pts: Array) -> float:
 
 
 func _start(n: Node3D, steps: Array) -> void:
+	n.visible = true          # minora ichida (zinada) bo'lgan askar yangi buyruqda ko'rinmay qolib ketmasin
 	if n.has_meta("sp_up"):
 		n.remove_meta("sp_up")
 		ShieldPose.set_up(n, false)
@@ -501,6 +520,7 @@ func _start(n: Node3D, steps: Array) -> void:
 
 
 func release(n: Node3D) -> void:
+	n.visible = true
 	n.set_meta("manual", false)
 	n.remove_meta("rts")
 
@@ -573,7 +593,7 @@ func _tb_slots(n: int, at: Vector3, fwd: Vector3, hole: bool) -> Array:
 		rows = int(ceil(float(n + 1) / cols))
 	if hole and rows < 3:
 		rows = 3
-	var sp := 0.95
+	var sp := 1.3            # qalqonlar bir-biriga kirib ketmasin
 	var res: Array = []
 	var cr := rows / 2
 	var cc := cols / 2
@@ -769,6 +789,34 @@ func tower_door(tp: Vector3) -> Vector3:
 	return tp + dir * 5.0
 
 
+func _access(p: Vector3) -> Dictionary:
+	## devorga chiqish joyi: eng yaqin minora yoki darvoza (darvoza minorasidagi zina). {} - yo'q
+	var best := {}
+	var bd := 1e9
+	var q := Vector3(p.x, 0, p.z)
+	for t in c.data["towers"]:
+		var tp: Vector3 = c._v(t["p"])
+		var d := tp.distance_to(q)
+		if d < bd:
+			bd = d
+			var edge := tp + (q - tp).normalized() * 4.4 if (q - tp).length() > 0.1 else tp
+			edge.y = c.WALL_H + 0.05
+			best = {"door": tower_door(tp), "edge": edge}
+	for g in c.data["gates"]:
+		var gp: Vector3 = c._v(g["p"])
+		var d2 := gp.distance_to(q)
+		if d2 < bd:
+			bd = d2
+			var ang := float(g["ang"])
+			var outer := Vector3(sin(ang), 0, cos(ang))
+			var along := Vector3(cos(ang), 0, -sin(ang))
+			var sg := 1.0 if along.dot(q - gp) >= 0.0 else -1.0
+			var edge2 := gp + along * sg * 5.6
+			edge2.y = c.WALL_H + 0.05
+			best = {"door": gp - outer * 4.5 + along * sg * 2.6, "edge": edge2}
+	return best
+
+
 func _climb_steps(nd: Node3D, post: Vector3, yaw: float) -> Array:
 	var steps: Array = []
 	var start := nd.position
@@ -776,25 +824,22 @@ func _climb_steps(nd: Node3D, post: Vector3, yaw: float) -> Array:
 		var dn := _descend_steps(nd)
 		steps += dn
 		start = dn[dn.size() - 1].get("land", start) if not dn.is_empty() else start
-	var tp := _tower_for(post)
-	if tp == Vector3.INF:
+	var ac := _access(post)
+	if ac.is_empty():
 		# minora yo'q - devor tagidagi narvon/zinadan chiqadi
 		var foot: Vector3 = Vector3(post.x, 0, post.z) + (c._keep() - Vector3(post.x, 0, post.z)).normalized() * 2.6
 		var p0 := path(start, foot)
 		if p0.is_empty():
 			return []
 		steps.append({"k": "walk", "pts": p0, "run": _plen(start, p0) > 14.0})
-		steps.append({"k": "hide", "t": 1.0, "to": post})
+		steps.append({"k": "hide", "t": 0.8, "to": post})
 	else:
-		var door := tower_door(tp)
-		var p1 := path(start, door)
+		var p1 := path(start, ac["door"])
 		if p1.is_empty():
 			return []
 		steps.append({"k": "walk", "pts": p1, "run": _plen(start, p1) > 14.0})
-		var edge := tp + (Vector3(post.x, 0, post.z) - tp).normalized() * 4.4
-		edge.y = c.WALL_H + 0.05
-		steps.append({"k": "hide", "t": 1.6, "to": edge})          # minora ichidagi zinadan ko'tariladi
-		steps.append({"k": "walk", "pts": [post], "run": false, "wall": true})
+		steps.append({"k": "hide", "t": 1.0, "to": ac["edge"]})          # minora/darvoza ichidagi zinadan ko'tariladi
+		steps.append({"k": "walk", "pts": [post], "run": true, "wall": true})
 	steps.append({"k": "face", "yaw": yaw})
 	steps.append({"k": "onwall", "pos": post})
 	steps.append({"k": "stance", "s": "idle"})
@@ -802,21 +847,18 @@ func _climb_steps(nd: Node3D, post: Vector3, yaw: float) -> Array:
 
 
 func _descend_steps(nd: Node3D) -> Array:
-	var tp := _tower_for(nd.position)
-	if tp == Vector3.INF:
+	var ac := _access(nd.position)
+	if ac.is_empty():
 		var down: Vector3 = Vector3(nd.position.x, 0, nd.position.z) + (c._keep() - Vector3(nd.position.x, 0, nd.position.z)).normalized() * 2.6
-		return [{"k": "hide", "t": 1.0, "to": down, "land": down, "off": true}]
-	var edge := tp + (Vector3(nd.position.x, 0, nd.position.z) - tp).normalized() * 4.4
-	edge.y = c.WALL_H + 0.05
-	var door := tower_door(tp)
-	return [{"k": "walk", "pts": [edge], "run": false, "wall": true},
-		{"k": "hide", "t": 1.6, "to": door, "land": door, "off": true}]
+		return [{"k": "hide", "t": 0.8, "to": down, "land": down, "off": true}]
+	return [{"k": "walk", "pts": [ac["edge"]], "run": true, "wall": true},
+		{"k": "hide", "t": 1.0, "to": ac["door"], "land": ac["door"], "off": true}]
 
 
 func toggle_gate() -> void:
 	c.data["gate_open"] = not gates_open()
 	rebuild_nav()
-	c._rebuild_gate_doors()
+	c.animate_gates()
 	Sfx.play("taran", -16.0, 0.1, 0.5)
 	c._msg("Darvoza OCHILDI - askarlar tashqariga chiqa oladi" if gates_open() else "Darvoza YOPILDI - qal'adan chiqib bo'lmaydi")
 	_refresh_ui()

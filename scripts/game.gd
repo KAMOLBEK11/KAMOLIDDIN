@@ -15,6 +15,7 @@ const PLAYER := "PLAYER"
 const REBEL := "REBEL"
 const SECONDS_PER_DAY := 2.0         # 1x tezlikda 1 kun = 2 soniya
 const START_MONEY := 1500.0
+const TEST_MODE := true       # sinov davri: boshlang'ich oltin va xomashyo ko'p (keyin false qilinadi)
 const MAX_BUILDINGS := 14
 
 const BUILDINGS := {
@@ -854,6 +855,10 @@ func start_game(id: String) -> void:
 	provinces[id]["owner"] = PLAYER
 	provinces[id]["unrest"] = 25.0
 	started = true
+	if TEST_MODE:
+		# sinov rejimi: hamma narsani qurib, tekshirib ko'rish uchun ko'p oltin va xomashyo
+		money = 100000.0
+		goods = {"oziq": 20000.0, "yogoch": 20000.0, "tosh": 20000.0}
 	Diplo.on_game_started(provinces[id]["country"])
 	start_unix = int(Time.get_unix_time_from_system() / 86400.0) * 86400 if era >= 4 else 0
 	Politics.on_game_started(provinces[id]["country"])

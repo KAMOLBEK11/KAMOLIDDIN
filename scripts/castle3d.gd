@@ -279,7 +279,7 @@ func _gate_near(p: Vector3, r: float) -> bool:
 
 func _torch(p: Vector3, col := Color(1.0, 0.62, 0.3), rng := 16.0, flame := 1.0) -> void:
 	## mash'al yorug'ligi: kechasi yonadi (alanga va nur), kunduzi o'chadi
-	if daynight.torches.size() >= 56:
+	if daynight.torches.size() >= 90:
 		return
 	var l := OmniLight3D.new()
 	l.position = p
@@ -340,6 +340,37 @@ func _flame(s: float) -> CPUParticles3D:
 	p.color_ramp = cg
 	p.position = Vector3(0, -0.15, 0)
 	return p
+
+
+func _pole_torch(p: Vector3) -> void:
+	## yerga qoqilgan mash'al ustuni: yog'och ustun, temir savatcha, alanga
+	var root := Node3D.new()
+	root.position = p
+	build_root.add_child(root)
+	var pole := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.07
+	cm.bottom_radius = 0.1
+	cm.height = 2.6
+	pole.mesh = cm
+	var wm := StandardMaterial3D.new()
+	wm.albedo_color = Color("#4a2e18")
+	pole.material_override = wm
+	pole.position.y = 1.3
+	root.add_child(pole)
+	var cage := MeshInstance3D.new()
+	var cc := CylinderMesh.new()
+	cc.top_radius = 0.2
+	cc.bottom_radius = 0.1
+	cc.height = 0.3
+	cage.mesh = cc
+	var im := StandardMaterial3D.new()
+	im.albedo_color = Color("#262422")
+	im.metallic = 0.7
+	cage.material_override = im
+	cage.position.y = 2.7
+	root.add_child(cage)
+	_torch(p + Vector3(0, 3.0, 0), Color(1.0, 0.62, 0.3), 14.0, 0.9)
 
 
 func _brazier(p: Vector3) -> void:
@@ -403,6 +434,18 @@ func _rebuild_lights() -> void:
 	# o'yinchi qo'ygan gulxanlar
 	for t in data.get("torches", []):
 		_brazier(_v(t))
+	# darvozaning ikki tomonida (ichkari va tashqarida) tik mash'al ustunlari
+	for g in data["gates"]:
+		var ang := float(g["ang"])
+		var outer := Vector3(sin(ang), 0, cos(ang))
+		var along := Vector3(cos(ang), 0, -sin(ang))
+		for sgn in [-1.0, 1.0]:
+			for side in [-1.0, 1.0]:
+				_pole_torch(_v(g["p"]) + outer * 4.2 * side + along * 3.6 * sgn)
+	# ark eshigi oldida ikki ustun
+	var kf: Vector2 = FOOT["keep"]
+	for sgn in [-1.0, 1.0]:
+		_pole_torch(_keep() + Vector3(sgn * 3.2, 0, kf.y * 0.5 + 1.5))
 	# minoralar tepasida gulxan
 	var top := float(Unit3D.STYLE_TOP.get(Unit3D.castle_style(_p()["country"]), 11.65))
 	for t in data["towers"]:
@@ -556,39 +599,60 @@ func _rebuild() -> void:
 
 
 func _rebuild_gate_doors() -> void:
-	## yopiq darvozada yog'och tavaqa ko'rinadi
+	## darvoza tavaqalari: ikki qanot, ilgaklarda ichkariga ochiladi / yopiladi
 	for d in _gate_doors:
 		if is_instance_valid(d):
 			d.queue_free()
 	_gate_doors.clear()
-	if bool(data.get("gate_open", true)):
-		return
+	var open := bool(data.get("gate_open", true))
+	var wood := StandardMaterial3D.new()
+	wood.albedo_color = Color("#5a3a1e")
+	wood.roughness = 0.9
+	var iron := StandardMaterial3D.new()
+	iron.albedo_color = Color("#2a2a2c")
+	iron.metallic = 0.7
 	for g in data["gates"]:
-		var mi := MeshInstance3D.new()
-		var bm := BoxMesh.new()
-		bm.size = Vector3(4.6, 5.2, 0.35)
-		mi.mesh = bm
-		var m := StandardMaterial3D.new()
-		m.albedo_color = Color("#5a3a1e")
-		m.roughness = 0.9
-		mi.material_override = m
-		var ang := float(g["ang"])
-		mi.rotation.y = ang
-		mi.position = _v(g["p"]) + Vector3(0, 2.6, 0)
-		build_root.add_child(mi)
-		_gate_doors.append(mi)
-		# temir tasmalar
-		for yy in [-1.6, 0.0, 1.6]:
-			var band := MeshInstance3D.new()
-			var bb := BoxMesh.new()
-			bb.size = Vector3(4.65, 0.22, 0.42)
-			band.mesh = bb
-			var bm2 := StandardMaterial3D.new()
-			bm2.albedo_color = Color("#2a2a2c")
-			bm2.metallic = 0.7
-			band.material_override = bm2
-			band.position = Vector3(0, yy, 0)
-			mi.add_child(band)
+		var root := Node3D.new()
+		root.position = _v(g["p"])
+		root.rotation.y = float(g["ang"])
+		build_root.add_child(root)
+		_gate_doors.append(root)
+		for sgn in [-1.0, 1.0]:
+			var pivot := Node3D.new()
+			pivot.name = "L" if sgn < 0 else "R"
+			pivot.position = Vector3(sgn * 2.3, 0, -0.1)
+			root.add_child(pivot)
+			var leaf := MeshInstance3D.new()
+			var bm := BoxMesh.new()
+			bm.size = Vector3(2.28, 5.2, 0.28)
+			leaf.mesh = bm
+			leaf.material_override = wood
+			leaf.position = Vector3(-sgn * 1.14, 2.6, 0)
+			pivot.add_child(leaf)
+			for yy in [-1.7, 0.0, 1.7]:
+				var band := MeshInstance3D.new()
+				var bb := BoxMesh.new()
+				bb.size = Vector3(2.3, 0.2, 0.34)
+				band.mesh = bb
+				band.material_override = iron
+				band.position = Vector3(0, yy, 0)
+				leaf.add_child(band)
+			pivot.rotation.y = (-sgn * PI * 0.47) if open else 0.0
+
+
+func animate_gates() -> void:
+	## darvozani ochish/yopish animatsiyasi (qanotlar sekin buriladi)
+	var open := bool(data.get("gate_open", true))
+	for root in _gate_doors:
+		if not is_instance_valid(root):
+			continue
+		for nm in ["L", "R"]:
+			var pv: Node3D = (root as Node3D).get_node_or_null(nm)
+			if pv == null:
+				continue
+			var sgn := -1.0 if nm == "L" else 1.0
+			var tw := pv.create_tween()
+			tw.tween_property(pv, "rotation:y", (-sgn * PI * 0.47) if open else 0.0, 2.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 
 var _flag_cache := {}         # asl mesh -> [bayroqsiz mesh, bayroq to'rtburchaklari]
@@ -1441,8 +1505,7 @@ func _toggle_walk() -> void:
 			_walk_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			_walk_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			hud.add_child(_walk_hint)
-		_walk_hint.visible = true
-		_msg("Siz qo'mondonsiz: qal'ani aylanib chiqing")
+		_walk_hint.visible = false        # ekranda yozuv chiqmaydi (o'yinchi iltimosi)
 	else:
 		if _walk_hint:
 			_walk_hint.visible = false
@@ -1953,6 +2016,7 @@ func _build_hud() -> void:
 	hud.add_child(cont)
 	vp = SubViewport.new()
 	vp.own_world_3d = true
+	vp.audio_listener_enable_3d = true
 	vp.msaa_3d = Viewport.MSAA_4X
 	vp.handle_input_locally = false
 	cont.add_child(vp)
@@ -2146,6 +2210,8 @@ func _set_tool(t: String) -> void:
 
 
 func _msg(t: String, bad := false) -> void:
+	if walk_mode and not bad:
+		return          # qo'mondon bo'lib yurganda ekranda yozuv chiqmaydi
 	msg_label.text = t
 	msg_label.add_theme_color_override("font_color", UIKit.BAD if bad else UIKit.GOOD)
 	var tw := msg_label.create_tween()
