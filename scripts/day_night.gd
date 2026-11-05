@@ -47,9 +47,9 @@ func setup(world_env: WorldEnvironment, s: DirectionalLight3D, camera: Camera3D,
 	moon.shadow_enabled = false
 	moon.rotation_degrees = Vector3(-55, 140, 0)
 	add_child(moon)
-	_rain = _particles(Color(0.75, 0.8, 0.9, 0.5), Vector3(0.03, 0.9, 0.03), 4000, 26.0, Vector3(0, -1, 0.08), 1.2)
-	_snow = _particles(Color(1, 1, 1, 0.95), Vector3(0.22, 0.22, 0.22), 2400, 3.0, Vector3(0.2, -1, 0.1), 6.0)
-	_dust = _particles(Color(0.78, 0.66, 0.46, 0.35), Vector3(0.6, 0.6, 0.6), 900, 14.0, Vector3(1, -0.05, 0.3), 4.0)
+	_rain = _particles(Color(0.75, 0.8, 0.9, 0.35), Vector3(0.015, 0.7, 0.015), 5000, 26.0, Vector3(0, -1, 0.08), 1.2)
+	_snow = _particles(Color(1, 1, 1, 0.85), Vector3(0.07, 0.07, 0.07), 5000, 3.0, Vector3(0.2, -1, 0.1), 6.0)
+	_dust = _particles(Color(0.78, 0.66, 0.46, 0.25), Vector3(0.25, 0.25, 0.25), 1600, 14.0, Vector3(1, -0.05, 0.3), 4.0)
 	_azan = AudioStreamPlayer3D.new()
 	_azan.unit_size = 60.0
 	_azan.max_distance = 2000.0
@@ -64,8 +64,19 @@ func setup(world_env: WorldEnvironment, s: DirectionalLight3D, camera: Camera3D,
 
 func _particles(col: Color, sz: Vector3, n: int, speed: float, dir: Vector3, life: float) -> CPUParticles3D:
 	var p := CPUParticles3D.new()
-	var m := BoxMesh.new()
-	m.size = sz
+	var m: PrimitiveMesh
+	if sz.x == sz.y:
+		# qor: kichik yumaloq parcha (oldin katta oq kublar ko'rinardi)
+		var sm := SphereMesh.new()
+		sm.radius = sz.x * 0.5
+		sm.height = sz.x
+		sm.radial_segments = 6
+		sm.rings = 3
+		m = sm
+	else:
+		var bm := BoxMesh.new()
+		bm.size = sz
+		m = bm
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -174,7 +185,7 @@ func _apply() -> void:
 	sun.light_energy = (1.25 * up) * (1.0 - bad * 0.6)
 	sun.light_color = Color(1.0, 0.95, 0.86).lerp(Color(1.0, 0.55, 0.3), dusk * 0.8)
 	sun.visible = up > 0.01
-	moon.light_energy = (1.0 - up) * 0.28 * (1.0 - bad * 0.5)
+	moon.light_energy = (1.0 - up) * 0.62 * (1.0 - bad * 0.45)
 	moon.visible = moon.light_energy > 0.01
 	var night := 1.0 - up
 	var top_day := Color("#3a6aa3").lerp(Color("#6d747c"), bad)
@@ -187,7 +198,10 @@ func _apply() -> void:
 	sky.sky_top_color = top
 	sky.sky_horizon_color = hor
 	sky.ground_horizon_color = hor.darkened(0.1)
-	env.ambient_light_energy = lerpf(0.12, 0.55, up) * (1.0 - bad * 0.25)
+	# kechasi atrof oy nuridan ko'kish-kumush rangda yoritiladi (oldin deyarli qop-qora edi)
+	env.ambient_light_color = Color(0.42, 0.5, 0.72)
+	env.ambient_light_sky_contribution = lerpf(0.25, 1.0, up)
+	env.ambient_light_energy = lerpf(0.55, 0.55, up) * (1.0 - bad * 0.25)
 	env.fog_light_color = hor
 	var fog_mul := 1.0 + bad * (6.0 if weather == "chang" else (3.0 if weather in ["yomgir", "qor"] else 1.0))
 	env.fog_density = _base_fog * fog_mul

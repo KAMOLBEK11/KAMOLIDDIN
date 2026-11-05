@@ -325,6 +325,7 @@ func _rebuild() -> void:
 		if Unit3D.castle_style(_p()["country"]) == "bastion" and away.length() > 0.5:
 			o.rotation.y = atan2(away.x, away.z)        # bastion uchi tashqariga qaraydi
 		build_root.add_child(o)
+		_tower_floor(o)
 		# minora tepasida soqchi (1-zamonda kamonchi, 2-zamonda miltiqli sarboz): atrofni kuzatadi
 		var u := Unit3D.soldier(Unit3D.faction_for(_p()["country"]), "sarboz" if Game.era == 2 else "kamonchi", Color(Game.countries[_p()["country"]]["color"]))
 		if u:
@@ -2091,3 +2092,32 @@ func _refresh_army(force := false) -> void:
 
 func _exit_tree() -> void:
 	Sfx.stop_loops("c_")
+
+
+func _tower_floor(o: Node3D) -> void:
+	## minora tepasidagi maydoncha: ichi bo'sh "teshik" bo'lib ko'rinmasin - tosh pol yotqiziladi
+	var top := float(Unit3D.STYLE_TOP.get(Unit3D.castle_style(_p()["country"]), 11.65))
+	var box := AABB()
+	var first := true
+	var inv := o.global_transform.affine_inverse()
+	for mi in o.find_children("*", "MeshInstance3D", true, false):
+		var m: MeshInstance3D = mi
+		var ab: AABB = inv * m.global_transform * m.get_aabb()
+		box = ab if first else box.merge(ab)
+		first = false
+	if first:
+		return
+	var r := minf(box.size.x, box.size.z) * 0.5 * 0.82
+	var cm := CylinderMesh.new()
+	cm.top_radius = r
+	cm.bottom_radius = r
+	cm.height = 0.25
+	cm.radial_segments = 28
+	var f := MeshInstance3D.new()
+	f.mesh = cm
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.62, 0.55, 0.45)
+	mat.roughness = 0.95
+	f.material_override = mat
+	f.position = Vector3(0, top - 0.14, 0)
+	o.add_child(f)

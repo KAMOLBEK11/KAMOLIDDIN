@@ -185,6 +185,14 @@ func _next_day() -> void:
 	money += total
 	if era < 4:
 		money -= spies * SiegeCastle.SPY_PAY
+		if money < 0.0:
+			# xazina bo'sh: askarlarga maosh to'lanmadi - ruhi tushadi (ochlik kabi), qochib ketmaydi
+			for id in player_provinces():
+				var c: Dictionary = provinces[id].get("castle", {})
+				if not c.is_empty():
+					c["hunger"] = minf(1.0, float(c.get("hunger", 0.0)) + 0.05)
+			if day % 3 == 0:
+				message.emit("XAZINA BO'SH (%d oltin)! Askarlarga maosh to'lanmayapti - ruhi tushmoqda. Bozor, zarbxona quring yoki qo'shinni kamaytiring." % int(money), "bad")
 		if day % 30 == 0:
 			SiegeCastle.grow()
 	_stockpile()
