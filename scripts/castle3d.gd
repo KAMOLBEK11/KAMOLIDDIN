@@ -325,7 +325,6 @@ func _rebuild() -> void:
 		if Unit3D.castle_style(_p()["country"]) == "bastion" and away.length() > 0.5:
 			o.rotation.y = atan2(away.x, away.z)        # bastion uchi tashqariga qaraydi
 		build_root.add_child(o)
-		_tower_floor(o)
 		# minora tepasida soqchi (1-zamonda kamonchi, 2-zamonda miltiqli sarboz): atrofni kuzatadi
 		var u := Unit3D.soldier(Unit3D.faction_for(_p()["country"]), "sarboz" if Game.era == 2 else "kamonchi", Color(Game.countries[_p()["country"]]["color"]))
 		if u:
