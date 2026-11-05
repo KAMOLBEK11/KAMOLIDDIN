@@ -957,10 +957,281 @@ func _process(delta: float) -> void:
 		if daynight != null:
 			money_label.text += "   " + daynight.time_text()
 	_update_guards(delta)
+	_update_drill(delta)
 	_army_t += delta
 	if _army_t > 0.4:
 		_army_t = 0.0
 		_refresh_army()
+
+
+# ================================================================ qo'mondon va mashq
+
+func _all_figs() -> Array:
+	var out: Array = []
+	for k in figs:
+		for n in figs[k]:
+			if is_instance_valid(n):
+				out.append(n)
+	return out
+
+
+func _wall_posts() -> Array:
+	## devor ustidagi qo'riqlash joylari: [pozitsiya, tashqariga qarash burchagi]
+	var res: Array = []
+	var kp := _keep()
+	for w in data["walls"]:
+		var a := _v(w["a"])
+		var b := _v(w["b"])
+		var L := a.distance_to(b)
+		if L < 4.0:
+			continue
+		var dir := (b - a) / L
+		var nrm := Vector3(-dir.z, 0, dir.x)
+		if nrm.dot(kp - (a + b) * 0.5) < 0.0:
+			nrm = -nrm         # ichkariga
+		var n := int(L / 3.2)
+		for i in n:
+			var q := a + dir * (L * (float(i) + 0.5) / float(n))
+			var near_gate := false
+			for g in data["gates"]:
+				if _v(g["p"]).distance_to(q) < 5.0:
+					near_gate = true
+			if near_gate:
+				continue
+			var pos := q + nrm * 0.6 + Vector3(0, WALL_H + 0.05, 0)
+			res.append([pos, atan2(nrm.z, -nrm.x)])
+	return res
+
+
+func _act(n: Node3D, a: String) -> void:
+	var ap := Unit3D.anim(n)
+	if ap and ap.has_animation(a):
+		ap.stop()
+		ap.play(a, 0.1)
+
+
+func _ensure_cmdr() -> void:
+	var total := _all_figs().size()
+	if total == 0:
+		if cmdr != null and is_instance_valid(cmdr):
+			cmdr.queue_free()
+		cmdr = null
+		return
+	if cmdr != null and is_instance_valid(cmdr):
+		return
+	var col := Color(Game.countries[_p()["country"]]["color"]) if Game.countries.has(_p()["country"]) else Color("#2f7d4a")
+	cmdr = Unit3D.soldier(Unit3D.faction_for(_p()["country"]), "qilichboz", col)
+	if cmdr == null:
+		return
+	cmdr.scale = Vector3.ONE * 1.08
+	army_root.add_child(cmdr)
+	cmdr.position = _cmd_home()
+	cmdr.set_meta("cmd", true)
+
+
+func _cmd_home() -> Vector3:
+	var fwd := _muster_dir()
+	var s0: Vector3 = slots[0] if slots.size() > 0 else _keep() + fwd * 17.0
+	return s0 + fwd * 4.5
+
+
+func _go(n: Node3D, to: Vector3, face: float, run := false, via = null) -> void:
+	## figurani yurgizib olib borish (tween), yetib kelgach yuzini burish
+	if n.has_meta("tw"):
+		var old = n.get_meta("tw")
+		if old is Tween and (old as Tween).is_valid():
+			(old as Tween).kill()
+	var d := to - n.position
+	if d.length() < 0.2:
+		n.position = to
+		n.rotation.y = face
+		return
+	var flat := Vector3(d.x, 0, d.z)
+	if flat.length() > 0.1:
+		n.rotation.y = atan2(-flat.z, flat.x)
+	var horse := Unit3D.rider_of(n) != null
+	Unit3D.play(n, "Run" if run and not horse else "Walk")
+	var tw := n.create_tween()
+	var sp := 5.0 if run else 1.9
+	if via != null:
+		# avval devor tagidagi zinaga yuguradi, keyin zinadan ko'tariladi
+		var v: Vector3 = via
+		tw.tween_property(n, "position", v, maxf(0.5, n.position.distance_to(v) / sp))
+		tw.tween_callback(func(): Unit3D.play(n, "Walk"))
+		tw.tween_property(n, "position", to, 1.4)
+	else:
+		tw.tween_property(n, "position", to, maxf(0.5, d.length() / sp))
+	tw.tween_callback(func():
+		n.rotation.y = face
+		Unit3D.play(n, "Idle"))
+	n.set_meta("tw", tw)
+
+
+func _switch_task(t: String) -> void:
+	_task_mode = t
+	_drill_t = 0.0
+	_beat = 0
+	_ensure_cmdr()
+	var fwd := _muster_dir()
+	var face := atan2(-fwd.z, fwd.x)
+	var posts: Array = _wall_posts() if t == "devor" else []
+	# askarlar barcha devorlar bo'ylab teng taqsimlanadi
+	var elig := _all_figs().filter(func(x): return (x as Node3D).get_meta("kind", "") in ["nayzachi", "qilichboz", "kamonchi", "sarboz"]).size()
+	var stepf := float(posts.size()) / float(maxi(1, elig)) if posts.size() > elig else 1.0
+	var pi := 0
+	var used := 0
+	for n in _all_figs():
+		var node: Node3D = n
+		var k: String = node.get_meta("kind", "")
+		pi = int(float(used) * stepf)
+		if t == "devor" and k in ["nayzachi", "qilichboz", "kamonchi", "sarboz"] and pi < posts.size():
+			var post: Vector3 = posts[pi][0]
+			var foot := Vector3(post.x, 0, post.z) + Vector3(cos(posts[pi][1] + PI), 0, -sin(posts[pi][1] + PI)) * 2.5
+			_go(node, post, posts[pi][1], true, foot)
+			node.set_meta("post", true)
+			used += 1
+			continue
+		var was_up: bool = node.position.y > 1.0
+		node.set_meta("post", false)
+		if node.has_meta("slot"):
+			if was_up:
+				var down := Vector3(node.position.x, 0, node.position.z) + (_keep() - node.position).normalized() * 2.5
+				down.y = 0.0
+				var tw0 := node.create_tween()
+				tw0.tween_property(node, "position", down, 1.2)
+				tw0.tween_callback(func(): _go(node, node.get_meta("slot"), face))
+				node.set_meta("tw", tw0)
+			else:
+				_go(node, node.get_meta("slot"), face)
+	if cmdr != null and is_instance_valid(cmdr):
+		_go(cmdr, _cmd_home(), face + PI)
+
+
+func _update_drill(delta: float) -> void:
+	if army_root == null:
+		return
+	var t: String = data.get("task", "dam")
+	if t != _task_mode:
+		_switch_task(t)
+		return
+	_drill_t += delta
+	var fwd := _muster_dir()
+	var right := Vector3(-fwd.z, 0, fwd.x)
+	var face := atan2(-fwd.z, fwd.x)
+	var c_ok := cmdr != null and is_instance_valid(cmdr)
+	match t:
+		"mashq":
+			# ritm: har 1.8 soniyada qo'mondon buyrug'i - butun saf birga zarba beradi / qalqon ko'taradi
+			if _drill_t >= 1.8:
+				_drill_t = 0.0
+				_beat += 1
+				for n in _all_figs():
+					var node: Node3D = n
+					if node.has_meta("tw") and (node.get_meta("tw") as Tween).is_valid() and (node.get_meta("tw") as Tween).is_running():
+						continue
+					var k: String = node.get_meta("kind", "")
+					var row: int = node.get_meta("row", 0)
+					var a := ""
+					if k == "otliq":
+						var rd := Unit3D.rider_of(node)
+						if rd:
+							_act(rd, "RideAttack" if _beat % 2 == 0 else "Ride")
+						continue
+					elif k == "top":
+						continue
+					elif k == "sarboz":
+						a = ["Aim", "Fire", "Reload"][_beat % 3]
+					elif k == "kamonchi":
+						a = "Attack" if _beat % 2 == 0 else "Idle"
+					else:
+						a = "Attack" if _beat % 2 == 0 else "Block"
+					# qatorlar ketma-ket (to'lqin kabi) bajaradi
+					if row == 0:
+						_act(node, a)
+					else:
+						get_tree().create_timer(row * 0.07).timeout.connect(func():
+							if is_instance_valid(node):
+								_act(node, a))
+			# qo'mondon saf oldida u yoqdan-bu yoqqa yuradi, ba'zan to'xtab buyruq beradi
+			if c_ok:
+				_cmd_walk(delta, fwd, right, face)
+		"saf":
+			# saf bo'lib oldinga 6 m yurib, to'xtab, orqaga qaytadi (10 soniyalik sikl)
+			var cyc := fmod(_drill_t, 12.0)
+			var off := 0.0
+			var moving := true
+			if cyc < 4.5:
+				off = 6.0 * smoothstep(0.0, 4.5, cyc)
+			elif cyc < 6.0:
+				off = 6.0
+				moving = false
+			elif cyc < 10.5:
+				off = 6.0 * (1.0 - smoothstep(6.0, 10.5, cyc))
+			else:
+				moving = false
+			for n in _all_figs():
+				var node: Node3D = n
+				if not node.has_meta("slot") or node.get_meta("kind", "") == "top":
+					continue
+				if node.has_meta("tw") and (node.get_meta("tw") as Tween).is_valid() and (node.get_meta("tw") as Tween).is_running():
+					continue
+				node.position = (node.get_meta("slot") as Vector3) + fwd * off
+				node.rotation.y = face
+				var want := "Walk" if moving else "Idle"
+				if node.get_meta("anim", "") != want:
+					node.set_meta("anim", want)
+					Unit3D.play(node, want)
+					var rd := Unit3D.rider_of(node)
+					if rd:
+						Unit3D.play(rd, "Ride")
+			if c_ok:
+				var home := _cmd_home() + right * 3.0
+				if not (cmdr.has_meta("tw") and (cmdr.get_meta("tw") as Tween).is_valid() and (cmdr.get_meta("tw") as Tween).is_running()):
+					cmdr.position = home + fwd * off
+					cmdr.rotation.y = face + PI
+					var cw := "Walk" if moving else "Cheer"
+					if cmdr.get_meta("anim", "") != cw:
+						cmdr.set_meta("anim", cw)
+						Unit3D.play(cmdr, cw if cw == "Walk" else "Cheer")
+		"devor":
+			# devordagi askarlar tashqariga qarab turadi, ba'zan atrofga qaraydi
+			if _drill_t > 3.0:
+				_drill_t = 0.0
+				for n in _all_figs():
+					var node: Node3D = n
+					if node.get_meta("post", false) and randf() < 0.25:
+						Unit3D.play(node, "Look" if randf() < 0.6 else "Idle")
+		_:
+			pass
+
+
+func _cmd_walk(delta: float, fwd: Vector3, right: Vector3, face: float) -> void:
+	if cmdr.has_meta("tw") and (cmdr.get_meta("tw") as Tween).is_valid() and (cmdr.get_meta("tw") as Tween).is_running():
+		return
+	if _cmd_pause > 0.0:
+		_cmd_pause -= delta
+		if _cmd_pause <= 0.0:
+			cmdr.set_meta("anim", "")
+		return
+	var home := _cmd_home()
+	var span := float(ROW_W) * 0.75
+	var ph: float = cmdr.get_meta("ph", 0.0) + delta * 0.32
+	cmdr.set_meta("ph", ph)
+	var x := sin(ph) * span
+	var prev: Vector3 = cmdr.position
+	cmdr.position = home + right * x
+	var mv := cmdr.position - prev
+	if mv.length() > 0.0005:
+		cmdr.rotation.y = atan2(-mv.z, mv.x)
+	if cmdr.get_meta("anim", "") != "Walk":
+		cmdr.set_meta("anim", "Walk")
+		Unit3D.play(cmdr, "Walk")
+	# har 4-zarbada to'xtab, askarlarga qarab baqiradi
+	if _beat % 4 == 3 and _drill_t < 0.05:
+		_cmd_pause = 1.6
+		cmdr.rotation.y = face + PI
+		cmdr.set_meta("anim", "Cheer")
+		Unit3D.play(cmdr, "Cheer")
 
 
 # ================================================================ HUD
@@ -1239,6 +1510,18 @@ func _close() -> void:
 
 # ================================================================ qo'shin: yollash va hovlida saf
 
+const TASK_TIPS := {"dam": "askarlar hovlida dam oladi",
+	"mashq": "askarlar qilich, nayza va kamon bilan mashq qiladi - tayyorgarlik oshadi",
+	"saf": "askarlar saf bo'lib oldinga-orqaga yurishni o'rganadi",
+	"devor": "piyodalar devorga chiqib qo'riqlaydi - dushman hujumida darrov devordan qaytaradi"}
+var _task_btns := {}
+var _drill_bar: ProgressBar
+var _drill_lbl: Label
+var _task_mode := ""
+var _drill_t := 0.0
+var _beat := 0
+var _cmd_pause := 0.0
+var cmdr: Node3D
 var _army_cards := {}       # tur -> {"count": Label, "btns": {n: Button}, "cost": Label}
 var _army_sum: Label
 var _army_dyn: VBoxContainer
@@ -1251,6 +1534,38 @@ func _build_army_cards() -> void:
 	army_box.add_child(UIKit.label("QO'SHIN", 20, Color("#f3d58a")))
 	_army_sum = UIKit.label("", 12, UIKit.INFO, true)
 	army_box.add_child(_army_sum)
+	# qo'mondon vazifasi
+	army_box.add_child(UIKit.label("Qo'mondon buyrug'i:", 13, Color("#f3d58a")))
+	var tg := GridContainer.new()
+	tg.columns = 2
+	tg.add_theme_constant_override("h_separation", 4)
+	tg.add_theme_constant_override("v_separation", 4)
+	army_box.add_child(tg)
+	var grp := ButtonGroup.new()
+	_task_btns.clear()
+	for t in CastleEco.TASKS:
+		var b := Button.new()
+		b.text = CastleEco.TASKS[t]
+		b.toggle_mode = true
+		b.button_group = grp
+		b.focus_mode = Control.FOCUS_NONE
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.add_theme_font_size_override("font_size", 13)
+		b.tooltip_text = TASK_TIPS[t]
+		b.button_pressed = data.get("task", "dam") == t
+		b.pressed.connect(func():
+			data["task"] = t
+			_msg("Qo'mondon: " + TASK_TIPS[t])
+			_show_army())
+		tg.add_child(b)
+		_task_btns[t] = b
+	_drill_bar = ProgressBar.new()
+	_drill_bar.max_value = 100
+	_drill_bar.show_percentage = false
+	_drill_bar.custom_minimum_size = Vector2(0, 10)
+	army_box.add_child(_drill_bar)
+	_drill_lbl = UIKit.label("", 11, UIKit.DIM, true)
+	army_box.add_child(_drill_lbl)
 	var fac := Unit3D.faction_for(_p()["country"])
 	var col := Color(Game.countries[_p()["country"]]["color"]) if Game.countries.has(_p()["country"]) else Color("#2f7d4a")
 	for k in CastleEco.units():
@@ -1295,6 +1610,12 @@ func _show_army() -> void:
 		_build_army_cards()
 	var p := _p()
 	var g := CastleEco.gold(p)
+	for t in _task_btns:
+		(_task_btns[t] as Button).set_pressed_no_signal(data.get("task", "dam") == t)
+	var dr := float(data.get("drill", 0.0))
+	_drill_bar.value = dr
+	_drill_lbl.text = "Tayyorgarlik: %d%%  (jangda askarlar %d%% chidamliroq). %s" % [int(dr), int(dr / 2.0),
+		"Mashq kuniga +1.5%, oziq ko'proq ketadi." if data.get("task", "dam") == "mashq" else ("Saf mashqi kuniga +0.6%." if data.get("task", "dam") == "saf" else "Mashqsiz asta pasayadi.")]
 	_army_sum.text = "Jami: %d askar (kuch %d).  Maosh: %d oltin/kun, oziq: %.0f/kun" % [CastleEco.army_total(p),
 		int(CastleEco.army_power(p)), int(g["pay"]), _food_per_day()]
 	for k in _army_cards:
@@ -1450,6 +1771,9 @@ func _refresh_army(force := false) -> void:
 		for f in figs.get(k, []):
 			var node: Node3D = f
 			var target: Vector3 = slots[mini(i, slots.size() - 1)] if slots.size() > 0 else _keep() + fwd * 20.0
+			node.set_meta("slot", target)
+			node.set_meta("row", i / (ROW_W + 1))
+			node.set_meta("kind", k)
 			i += 3 if k == "top" else (2 if k == "otliq" else 1)
 			if _initial or not node.get_meta("new", false) and node.position.distance_to(target) < 0.3:
 				node.position = target
@@ -1469,10 +1793,12 @@ func _refresh_army(force := false) -> void:
 				Unit3D.play(rd2, "Ride")
 			var tw := node.create_tween()
 			tw.tween_property(node, "position", target, dur)
+			node.set_meta("tw", tw)
 			tw.tween_callback(func():
 				node.rotation.y = face
 				node.set_meta("new", false)
 				Unit3D.play(node, "Idle"))
 	_initial = false
+	_task_mode = ""          # vazifa ko'rinishi qayta quriladi (yangi askarlar ham qo'shiladi)
 	if per > 1:
 		_msg("Hovlida: 1 figura = %d askar" % per)

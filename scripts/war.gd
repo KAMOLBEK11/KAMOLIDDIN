@@ -459,6 +459,12 @@ func _fight(a: Dictionary) -> void:
 		# devor bilan o'ralgan qal'a: himoyachilar ko'proq yo'qotish beradi, kamroq yo'qotadi
 		dmg_b *= 1.8
 		dmg_g *= 0.6
+		# devorni qo'riqlayotgan va mashq qilgan qo'shin
+		var cc: Dictionary = p.get("castle", {})
+		if cc.get("task", "") == "devor":
+			dmg_b *= 1.2
+			dmg_g *= 0.85
+		dmg_b *= 1.0 + float(cc.get("drill", 0.0)) / 250.0
 	_take_losses(a, dmg_b)
 	# avval mahalliy mudofaa, keyin garnizon
 	var from_militia := minf(p["militia"], dmg_g)

@@ -56,7 +56,25 @@ static func castle(p: Dictionary) -> Dictionary:
 			c["army"][k] = 0
 	if not c.has("queue"):
 		c["queue"] = []
+	if not c.has("task"):
+		c["task"] = "dam"        # dam (dam olish), mashq, devor (devorni qo'riqlash), saf (saf mashqi)
+		c["drill"] = 0.0         # tayyorgarlik 0..100
 	return c
+
+
+const TASKS := {"dam": "Dam olish", "mashq": "Jang mashqi", "saf": "Saf mashqi", "devor": "Devorni qo'riqlash"}
+
+
+static func drill_of(p: Dictionary) -> float:
+	return float(castle(p).get("drill", 0.0))
+
+
+static func best_drill() -> float:
+	## o'yinchining eng tayyor qo'shini (jangda askarlar shunga qarab chidamliroq)
+	var d := 0.0
+	for id in Game.player_provinces():
+		d = maxf(d, drill_of(Game.provinces[id]))
+	return d
 
 
 static func count(p: Dictionary, t: String) -> int:
@@ -193,6 +211,20 @@ static func daily(p: Dictionary) -> void:
 		var m: float = EQ.get(k, 1.0)
 		eat += float(a[k]) * EAT * m
 		pay_ += float(a[k]) * PAY * m
+	# mashq: tayyorgarlik oshadi (askarlar ko'proq ovqat yeydi); mashqsiz asta pasayadi
+	var task: String = c.get("task", "dam")
+	var tot := 0
+	for k in a:
+		tot += int(a[k])
+	if tot > 0:
+		if task == "mashq":
+			c["drill"] = minf(100.0, float(c.get("drill", 0.0)) + 1.5)
+			eat *= 1.25
+		elif task == "saf":
+			c["drill"] = minf(100.0, float(c.get("drill", 0.0)) + 0.6)
+			eat *= 1.1
+		else:
+			c["drill"] = maxf(0.0, float(c.get("drill", 0.0)) - 0.15)
 	Game.goods["oziq"] = have("oziq") - eat
 	if have("oziq") < 0.0:
 		Game.goods["oziq"] = 0.0

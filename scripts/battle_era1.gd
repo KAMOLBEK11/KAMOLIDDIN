@@ -285,6 +285,8 @@ func _make_fig(reg: Dictionary) -> void:
 	var st: Dictionary = STAT[k]
 	var f := {"node": node, "disc": disc, "reg": reg["id"], "side": reg["side"], "kind": k, "hp": float(st["hp"]),
 		"alive": true, "pos": Vector3.ZERO, "cd": _rng.randf() * 1.0, "target": -1, "anim": "", "escaped": false}
+	if reg["side"] == 0 and Game.era < 4:
+		f["hp"] *= 1.0 + CastleEco.best_drill() / 200.0      # mashq qilgan askar chidamliroq
 	f["i"] = figs.size()
 	figs.append(f)
 	reg["figs"].append(f["i"])
@@ -906,6 +908,21 @@ func _order(gp: Vector3) -> void:
 	if siege and att_side == 0 and phase == "fight" and r["kind"] in ["nayzachi", "qilichboz"] and _wall_dist(gp) < 5.0 and _outside(gp, 0.0):
 		_order_climb(r, gp)
 		return
+	# o'z qal'angizni himoya qilish: devorni bossangiz - bo'linma zinadan devor ustiga chiqadi
+	if siege and def_side == 0 and r["side"] == 0 and not r["kind"] in ["otliq", "top"] and _wall_dist(gp) < 4.0 and not r.has("title"):
+		_order_man_wall(r, gp, phase == "deploy")
+		return
+	# devordagi bo'linmani hovliga tushirish
+	if siege and def_side == 0 and r["side"] == 0 and _inside(gp) and _wall_dist(gp) >= 4.0:
+		for fi in r["figs"]:
+			var wf: Dictionary = figs[fi]
+			if wf["alive"] and (wf.get("layer", "ground") == "wall" or wf.get("state", "") == "to_wall"):
+				wf["state"] = ""
+				wf["layer"] = "ground"
+				wf.erase("post")
+				var wd := _wall_point(wf["pos"]) - _outward(_wall_point(wf["pos"])) * 3.0
+				wf["pos"] = Vector3(wd.x, h_at(wd.x, wd.z), wd.z)
+				(wf["node"] as Node3D).position = wf["pos"]
 	var ef := _fig_at(gp, 1, 5.0)
 	if ef >= 0 and phase == "fight":
 		r["target"] = figs[ef]["reg"]
@@ -1406,6 +1423,8 @@ func _update_arrows(dt: float) -> void:
 			if ar["target"] >= 0:
 				var e: Dictionary = figs[ar["target"]]
 				var cover := 0.5 if e.get("layer", "ground") == "wall" else 1.0
+				if e.get("layer", "ground") == "wall" and not _ranged(e["kind"]) and e.get("state", "") == "":
+					cover = 0.12      # devordagi piyoda tishli parapet ortiga yashirinadi
 				# qalqonli piyodaga o'q kamroq o'tadi
 				if e["kind"] in ["nayzachi", "qilichboz"] and not ar.has("dmg"):
 					cover *= 0.55
@@ -2185,13 +2204,51 @@ func _siege_deploy() -> void:
 		r["anchor"] = _center(r)
 		r["face"] = PI
 		r["in_castle"] = true
-	cam_target = Vector3(W * 0.5, 0, H * 0.5)
+	# "devorni qo'riqlash" vazifasida barcha piyodalar devorda; aks holda bitta bo'linma
+	if def_side == 0 and _player_task() == "devor":
+		var k := 0
+		var sides := [Vector3(cs["x0"], 0, cs["cz"]), Vector3(cs["cx"], 0, cs["z0"]), Vector3(cs["cx"], 0, cs["z1"])]
+		for r in regs:
+			if r["side"] == 0 and not r.has("title") and r["kind"] in ["nayzachi", "qilichboz"] and _alive(r) > 0:
+				var c: Vector3 = sides[0] + Vector3(0, 0, (k - 1) * 14.0) if k < 3 else sides[mini(k - 2, 2)]
+				_order_man_wall(r, c, true)
+				k += 1
+	# bitta piyoda bo'linma (nayzachi, bo'lmasa qilichboz) hujum tomonidagi devor ustida turadi
+	for want in (["nayzachi", "qilichboz"] if not (def_side == 0 and _player_task() == "devor") else []):
+		var done := false
+		for r in regs:
+			if r["side"] == def_side and not r.has("title") and r["kind"] == want and _alive(r) > 0:
+				_order_man_wall(r, Vector3(cs["x0"], 0, cs["cz"]), true)
+				done = true
+				break
+		if done:
+			break
 
 
 func _siege_fig(f: Dictionary, r: Dictionary, st: Dictionary, dt: float, re: bool) -> bool:
 	## qamal maxsus holatlari. true - figura bu kadrda shu yerda boshqarildi
 	var node: Node3D = f["node"]
 	var state: String = f.get("state", "")
+	if state == "to_wall":
+		# hovlidan devor ichki tagiga borib, zinadan ko'tariladi
+		var post: Vector3 = f["post"]
+		var foot := _wall_point(post) - _outward(_wall_point(post)) * 2.6
+		foot.y = h_at(foot.x, foot.z)
+		if f.get("stair_t", 0.0) <= 0.0 and Vector2(foot.x - f["pos"].x, foot.z - f["pos"].z).length() > 0.8:
+			_move(f, foot, st["speed"], dt)
+			_anim(f, "Run")
+			return true
+		f["stair_t"] = f.get("stair_t", 0.0) + dt
+		var k := clampf(f["stair_t"] / 1.6, 0.0, 1.0)
+		f["pos"] = foot.lerp(post, k)
+		node.position = f["pos"]
+		_anim(f, "Walk")
+		if k >= 1.0:
+			f["state"] = ""
+			f["layer"] = "wall"
+		return true
+	if f.get("layer", "ground") == "wall" and f["side"] == def_side and not _ranged(f["kind"]):
+		return _wall_melee(f, r, st, dt)
 	if state == "climbing":
 		f["climb_t"] = f["climb_t"] + dt
 		var k := clampf(f["climb_t"] / f["climb_dur"], 0.0, 1.0)
@@ -2220,6 +2277,20 @@ func _siege_fig(f: Dictionary, r: Dictionary, st: Dictionary, dt: float, re: boo
 					_hit(e, st["dmg"] * _rng.randf_range(0.8, 1.3))
 					_anim(f, "Attack", true)
 				return true
+		# yaqinda devor himoyachisi bo'lsa - unga qarab boradi va olishadi
+		var foe: Dictionary = {}
+		var fd := 9.0
+		for e in figs:
+			if e["alive"] and e["side"] != f["side"] and e.get("layer", "ground") == "wall":
+				var dd: float = e["pos"].distance_to(f["pos"])
+				if dd < fd:
+					fd = dd
+					foe = e
+		if not foe.is_empty():
+			_wall_walk(f, foe["pos"], st["speed"] * 0.8, dt)
+			_anim(f, "Run")
+			f["wall_t"] = 0.0
+			return true
 		if f["wall_t"] > 1.2:
 			var w := _wall_point(f["pos"])
 			var down := w - _outward(w) * 3.0
@@ -2319,6 +2390,121 @@ func _siege_fig(f: Dictionary, r: Dictionary, st: Dictionary, dt: float, re: boo
 			_anim(f, "Run" if f["kind"] != "otliq" else "Gallop")
 			return true
 	return false
+
+
+func _player_task() -> String:
+	for id in Game.player_provinces():
+		var c: Dictionary = Game.provinces[id].get("castle", {})
+		if c.get("task", "") != "":
+			return c["task"]
+	return ""
+
+
+func _wall_top(p: Vector3) -> Vector3:
+	var w := _wall_point(p)
+	return Vector3(w.x, h_at(w.x, w.z) + 7.1, w.z)
+
+
+func _wall_slots_near(gp: Vector3, n: int, gap := 1.7) -> Array:
+	## devor bo'ylab gp atrofida n ta joy (devor ustida, biroz ichkariroqda)
+	var w := _wall_point(gp)
+	var out := _outward(w)
+	var along := Vector3(out.z, 0, -out.x)
+	var res: Array = []
+	for i in n:
+		var k := (float(i) - float(n - 1) * 0.5) * gap
+		var q := _wall_point(w + along * k)
+		res.append(_wall_top(q) - _outward(q) * 0.4)
+	return res
+
+
+func _order_man_wall(r: Dictionary, gp: Vector3, instant: bool) -> void:
+	var live: Array = r["figs"].filter(func(fi): return figs[fi]["alive"])
+	var slots := _wall_slots_near(gp, live.size())
+	var out := _outward(_wall_point(gp))
+	for i in live.size():
+		var f: Dictionary = figs[live[i]]
+		f["post"] = slots[i]
+		f["target"] = -1
+		if instant:
+			f["layer"] = "wall"
+			f["state"] = ""
+			f["pos"] = slots[i]
+			(f["node"] as Node3D).position = f["pos"]
+			(f["node"] as Node3D).rotation.y = atan2(-out.z, out.x)
+			_anim(f, "Idle")
+		elif f.get("layer", "ground") != "wall":
+			f["state"] = "to_wall"
+			f["stair_t"] = 0.0
+		else:
+			f["state"] = ""
+	r["order"] = "hold"
+	r["on_wall"] = true
+	if tip_label and not instant:
+		tip_label.text = "%s devorga chiqmoqda - narvon bilan chiqayotgan dushmanni yuqoridan qaytaradi." % NAMES[r["kind"]]
+
+
+func _wall_walk(f: Dictionary, goal: Vector3, speed: float, dt: float) -> void:
+	## devor ustida yurish (devor chizig'idan chiqmaydi)
+	var d := Vector2(goal.x - f["pos"].x, goal.z - f["pos"].z)
+	var L := d.length()
+	if L < 0.05:
+		return
+	var step := d / L * minf(L, speed * dt)
+	var np: Vector3 = f["pos"] + Vector3(step.x, 0, step.y)
+	var top := _wall_top(np) - _outward(_wall_point(np)) * 0.4
+	f["pos"] = top
+	var node: Node3D = f["node"]
+	node.position = top
+	node.rotation.y = atan2(-step.y, step.x)
+
+
+func _wall_melee(f: Dictionary, r: Dictionary, st: Dictionary, dt: float) -> bool:
+	## devor ustidagi piyoda himoyachi: devorga chiqqan dushman bilan olishadi, narvondagilarni urib tushiradi
+	var best: Dictionary = {}
+	var bd := 18.0
+	for e in figs:
+		if not e["alive"] or e["side"] == f["side"]:
+			continue
+		var on_w: bool = e.get("layer", "ground") == "wall"
+		var climbing: bool = e.get("state", "") == "climbing" and float(e["climb_t"]) / float(e["climb_dur"]) > 0.45
+		if not on_w and not climbing:
+			continue
+		var d := Vector2(e["pos"].x - f["pos"].x, e["pos"].z - f["pos"].z).length()
+		if d < bd:
+			bd = d
+			best = e
+	if not best.is_empty():
+		var reach := 2.6 if best.get("state", "") == "climbing" else 1.9
+		if bd > reach:
+			_wall_walk(f, best["pos"], st["speed"] * 0.9, dt)
+			_anim(f, "Run")
+			return true
+		_face(f, best["pos"])
+		if f["cd"] <= 0.0:
+			f["cd"] = st["cd"]
+			var dmg: float = st["dmg"] * _rng.randf_range(0.9, 1.3)
+			if best.get("state", "") == "climbing":
+				dmg *= 1.8        # narvonda turgan dushman himoyasiz
+				if _rng.randf() < 0.18:
+					dmg = 999.0       # narvondan itarib tushirdi
+					tip_label.text = "Himoyachi dushmanni narvondan itarib tushirdi!"
+			_hit(best, dmg)
+			_anim(f, "Attack", true)
+		elif f["anim"] != "Attack":
+			_anim(f, "Block")
+		return true
+	# dushman yo'q - o'z joyiga qaytib, tashqariga qarab turadi
+	var post: Vector3 = f.get("post", f["pos"])
+	if Vector2(post.x - f["pos"].x, post.z - f["pos"].z).length() > 0.4:
+		_wall_walk(f, post, st["speed"] * 0.6, dt)
+		_anim(f, "Walk")
+		return true
+	var o := _outward(_wall_point(f["pos"]))
+	(f["node"] as Node3D).rotation.y = lerp_angle((f["node"] as Node3D).rotation.y, atan2(-o.z, o.x), 0.1)
+	if f["anim"] != "Idle" and f["anim"] != "Look":
+		_anim(f, "Idle")
+	return true
 
 
 func _order_climb(r: Dictionary, gp: Vector3) -> void:
