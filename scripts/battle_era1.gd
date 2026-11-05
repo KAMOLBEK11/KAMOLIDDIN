@@ -38,6 +38,7 @@ const NAMES1 := {"nayzachi": "Nayzachilar", "qilichboz": "Qilichbozlar", "kamonc
 var army_id := -1
 var prov_id := ""
 var castle_country := ""
+var attacker_country := ""     # qamal qurollari uslubi (hujumchi xalqi)
 var ladders: Array = []         # narvon/arqonlar: {node, spot, out, along, rope, alive, reg}      # qal'a egasi - qal'a uslubi shunga qarab (kreml, ritsar qal'asi, ...)
 var player_attacking := true
 var finished := false
@@ -185,6 +186,7 @@ func setup(aid: int) -> void:
 			def_side = 0
 			att_side = 1
 	castle_country = (p["owner"] if Game.countries.has(p["owner"]) else p["country"]) if player_attacking else p["country"]
+	attacker_country = (Game.provinces[Game.player_provinces()[0]]["country"] if not Game.player_provinces().is_empty() else "TIM") if player_attacking else str(a["owner"])
 	if siege:
 		var hx: float = spec["hx"]
 		var hz: float = spec["hz"]
@@ -2941,12 +2943,17 @@ func _engine_model(t: String) -> Node3D:
 		cn.scale = Vector3.ONE * 1.3
 		return cn
 	# Blender modellari: qarshi yukli manjaniq va teri bilan yopilgan taran
-	var mp := "res://models/siege/%s.glb" % ("taran" if t == "taran" else "manjaniq")
+	# har xalqning o'z qamal quroli: xitoyda arqonli "pao", Yevropada osma yukli trebushet, arablarda qopli yuk...
+	var st := Unit3D.building_style(attacker_country)
+	var base := "taran" if t == "taran" else "manjaniq"
+	var mp := "res://models/siege/%s_%s.glb" % [base, st]
+	if not ResourceLoader.exists(mp):
+		mp = "res://models/siege/%s.glb" % base
 	if ResourceLoader.exists(mp):
 		var mo: Node3D = load(mp).instantiate()
 		FX.pbr(mo)
 		Unit3D.recolor(mo, colors[att_side])
-		Unit3D.add_crew(mo, fac[att_side], colors[att_side], t)
+		Unit3D.add_crew(mo, fac[att_side], colors[att_side], "manjaniq_xitoy" if t != "taran" and st == "xitoy" else t)
 		return mo
 	var root := Node3D.new()
 	var wood := _eng_mat
