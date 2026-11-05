@@ -209,6 +209,8 @@ static func soldier(faction: String, kind: String, team := Color("#2f7d4a"), kni
 		inst.scale = Vector3.ONE * float(SCALE.get(faction if path.contains(faction + "_") else "", GEMINI_SCALE))
 		_alias_anims(anim(inst), kind)
 	recolor(n, team)
+	if kind in ["qilichboz", "nayzachi"] and Game.era < 2:
+		ShieldPose.attach(n)        # qalqon doim ko'krak oldida, yuzi oldinga
 	var ap := anim(n)
 	if ap:
 		for a in ["Idle", "Walk", "Run", "Block", "Ride", "Cheer", "Aim", "Look"]:
@@ -584,6 +586,11 @@ static func cavalry(faction: String, kind: String, team := Color("#2f7d4a")) -> 
 	if h:
 		caparison(h, faction, team)
 	var r := soldier(faction if faction in BLENDER_FACTIONS else "osiyo", kind, team)     # otda o'tirish animatsiyasi faqat Blender modellarida bor
+	if r:
+		var spm := ShieldPose._find(r)
+		if spm:
+			spm.front_target = 0.0
+			spm.front = 0.0
 	if h == null or r == null:
 		return h if h else r
 	var sk := _skeleton(h)

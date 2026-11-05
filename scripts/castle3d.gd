@@ -102,6 +102,7 @@ func setup(id: String) -> void:
 	rts = CastleRTS.new()
 	add_child(rts)
 	rts.setup(self)
+	_build_ctx()
 	_rebuild()
 	Game.changed.connect(_show_army)
 	_show_army()
@@ -211,7 +212,26 @@ func _build_world() -> void:
 	_rebuild_lights()
 
 
+var _fp_pitch := 0.0
+var _fps := false
+var _base_fov := 50.0
+
+
 func _apply_cam() -> void:
+	# qo'mondon: juda yaqinlashtirilsa - uning ko'zi bilan (birinchi shaxs) ko'rinish
+	var fps := walk_mode and cam_dist < 2.6 and cmdr != null and is_instance_valid(cmdr)
+	if fps != _fps:
+		_fps = fps
+		if cmdr != null and is_instance_valid(cmdr):
+			cmdr.visible = not fps
+	if fps:
+		var fwd := Vector3(-sin(cam_yaw), 0, -cos(cam_yaw))
+		var horse := Unit3D.rider_of(cmdr) != null
+		cam.position = cmdr.position + Vector3(0, 2.75 if horse else 1.68, 0) + fwd * 0.2
+		cam.look_at(cam.position + fwd + Vector3(0, tan(_fp_pitch), 0), Vector3.UP)
+		cam.fov = 70.0
+		return
+	cam.fov = _base_fov
 	var pitch := deg_to_rad(lerpf(30.0, 62.0, clampf((cam_dist - 20.0) / 380.0, 0.0, 1.0)))
 	var off := Vector3(sin(cam_yaw) * cos(pitch), sin(pitch), cos(cam_yaw) * cos(pitch)) * cam_dist
 	cam.position = cam_target + off
@@ -1257,8 +1277,15 @@ func _input_3d(e: InputEvent) -> void:
 	if e is InputEventMouseButton:
 		var mb := e as InputEventMouseButton
 		if mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_UP:
+			if walk_mode:
+				# qo'mondonga yaqinlashish: oxirida uning ko'zi bilan ko'rish
+				_tdist = 1.0 if _tdist < 4.0 else clampf(_tdist / 1.25, 3.0, 60.0)
+				return
 			_tdist = clampf(_tdist / 1.15, 18.0, MAX_DIST)
 		elif mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			if walk_mode:
+				_tdist = 4.0 if _tdist < 3.0 else clampf(_tdist * 1.25, 3.0, 60.0)
+				return
 			if _tdist >= MAX_DIST * 0.98:
 				# eng uzoqdan yana uzoqlashtirsa - xaritaga (globusga) silliq ko'tarilamiz
 				_leaving = true
@@ -1304,6 +1331,7 @@ func _input_3d(e: InputEvent) -> void:
 		if walk_mode and _lmb and _drag_moved:
 			# qo'mondon: chap tugmani bosib turib sudrash - atrofga 360 gradus qarash
 			cam_yaw -= mm.relative.x * 0.006
+			_fp_pitch = clampf(_fp_pitch - mm.relative.y * 0.004, -1.1, 0.9)
 			_walk_drag = true
 			_apply_cam()
 		elif tool == "" and _lmb and _drag_moved and rts and not walk_mode:
@@ -1448,6 +1476,8 @@ func _process(delta: float) -> void:
 	_update_guards(delta)
 	if rts:
 		rts.update(delta)
+	if _ctx_panel:
+		_ctx_tick(delta)
 	_update_drill(delta)
 	_army_t += delta
 	if _army_t > 0.4:
@@ -1482,12 +1512,11 @@ func _toggle_walk() -> void:
 	walk_mode = not walk_mode
 	_set_tool("")
 	if _side_panel:
-		_side_panel.visible = not walk_mode
-	if _tool_panel:
-		_tool_panel.visible = not walk_mode
+		_side_panel.visible = false
+	open_ctx("")
 	if rts and rts.panel:
-		rts.panel.visible = not walk_mode
 		rts.clear_sel()
+		rts.panel.visible = walk_mode      # qo'mondon: pastda askar turlari va buyruqlar
 	if walk_mode:
 		_saved_cam = [cam_target, cam_dist, _tdist, cam_yaw]
 		if cmdr.has_meta("tw") and (cmdr.get_meta("tw") as Tween).is_valid():
@@ -1507,6 +1536,8 @@ func _toggle_walk() -> void:
 			hud.add_child(_walk_hint)
 		_walk_hint.visible = false        # ekranda yozuv chiqmaydi (o'yinchi iltimosi)
 	else:
+		if cmdr != null and is_instance_valid(cmdr):
+			cmdr.visible = true
 		if _walk_hint:
 			_walk_hint.visible = false
 		if _saved_cam.size() == 4:
@@ -1569,6 +1600,9 @@ func _walk_mouse(mb: InputEventMouseButton) -> void:
 				if rts and rts.aim_mode:
 					rts.order_shoot(_ground_at(mb.position))
 					rts.sel = []
+				elif rts and rts.move_mode and not rts.sel.is_empty():
+					rts.move_mode = false
+					rts.order_move(_ground_at(mb.position))
 				else:
 					_cmd_attack()
 			_walk_drag = false
@@ -1672,6 +1706,8 @@ func _walk(delta: float) -> void:
 	elif _cmd_act == "" and (_walk_anim != "Cheer" or not (Unit3D.anim(cmdr) and Unit3D.anim(cmdr).is_playing())):
 		_walk_play("Idle")
 	cam_target = cam_target.lerp(cmdr.position + Vector3(0, 1.0, 0), 1.0 - exp(-8.0 * delta))
+	if _fps:
+		cmdr.rotation.y = atan2(cos(cam_yaw), -sin(cam_yaw))     # qo'mondon qaragan tomonga buriladi
 	var yaw := 0.0
 	if Input.is_key_pressed(KEY_Q): yaw -= 1
 	if Input.is_key_pressed(KEY_E): yaw += 1
@@ -2093,15 +2129,15 @@ func _build_hud() -> void:
 	hb.add_child(tabs)
 	var tgrp := ButtonGroup.new()
 	var rows: Array = []
-	for ri in 2:
-		var rowdef: Array = [["QAL'A", ROW1], ["XO'JALIK", ROW2]][ri]
+	for ri in 3:
+		var rowdef: Array = [["QAL'A", ROW1], ["XO'JALIK", ROW2], ["QO'SHIN", []]][ri]
 		var tbn := Button.new()
 		tbn.text = rowdef[0]
 		tbn.toggle_mode = true
 		tbn.button_group = tgrp
 		tbn.button_pressed = ri == 0
 		tbn.focus_mode = Control.FOCUS_NONE
-		tbn.custom_minimum_size = Vector2(104, 50)
+		tbn.custom_minimum_size = Vector2(104, 34)
 		if UIKit.title_font() != null:
 			tbn.add_theme_font_override("font", UIKit.title_font())
 		tbn.add_theme_font_size_override("font_size", 14)
@@ -2114,6 +2150,8 @@ func _build_hud() -> void:
 		tbn.pressed.connect(func():
 			for i in rows.size():
 				(rows[i] as Control).visible = i == ri)
+		if ri == 2:
+			_build_army_tab(row)
 		for t in rowdef[1]:
 			if t == "mosque" and not Unit3D.is_muslim(_p()["country"]):
 				continue
@@ -2194,6 +2232,8 @@ func _set_tool(t: String) -> void:
 	for k in tool_btns:
 		(tool_btns[k] as Button).set_pressed_no_signal(k == tool)
 	if t == "":
+		if tip_label == null:
+			return
 		tip_label.text = "Asbobni tanlang. G'ildirak - yaqinlashtirish, WASD / o'rta tugma - surish, Q/E - aylantirish, R - binoni burish."
 	elif TIPS.has(t):
 		var s: String = TIPS[t]
@@ -2665,3 +2705,250 @@ func _tower_floor(o: Node3D) -> void:
 	f.material_override = mat
 	f.position = Vector3(0, top - 0.14, 0)
 	o.add_child(f)
+
+
+# ================================================================ pastki kontekst paneli (Kazaki uslubida)
+## Yon panellar yo'q. Nimani bossangiz - pastda o'shaning paneli chiqadi:
+##   ark - qurilish (qal'a, xo'jalik) va qo'shin buyrug'i; kazarma - piyoda askar yollash; otxona - otliq;
+##   temirchi - zirh; darvoza - ochish/yopish; askarlar - buyruqlar; bo'sh joy - panel yopiladi.
+
+var ctx := ""
+var _ctx_panel: PanelContainer
+var _ctx_box: HBoxContainer
+var _ctx_title: Label
+var _ctx_cards := {}         # tur -> {"count": Label, "btn": Button}
+var _ctx_army_row: HBoxContainer
+var _ctx_t := 0.0
+
+
+func _build_ctx() -> void:
+	_side_panel.visible = false
+	_tool_panel.visible = false
+	_ctx_panel = PanelContainer.new()
+	_ctx_panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_ctx_panel.offset_left = 8
+	_ctx_panel.offset_right = -8
+	_ctx_panel.offset_top = -176
+	_ctx_panel.offset_bottom = -8
+	_ctx_panel.add_theme_stylebox_override("panel", UIKit.style(Color(0.05, 0.08, 0.12, 0.7), 12, Color(0.6, 0.8, 1.0, 0.22), 10))
+	_ctx_panel.visible = false
+	hud.add_child(_ctx_panel)
+	var v := VBoxContainer.new()
+	_ctx_panel.add_child(v)
+	_ctx_title = UIKit.label("", 15, Color("#f3d58a"))
+	v.add_child(_ctx_title)
+	var sc := ScrollContainer.new()
+	sc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.custom_minimum_size = Vector2(0, 128)
+	v.add_child(sc)
+	_ctx_box = HBoxContainer.new()
+	_ctx_box.add_theme_constant_override("separation", 8)
+	sc.add_child(_ctx_box)
+	if rts and rts.panel:
+		# askar buyruqlari paneli ham pastda
+		rts.panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+		rts.panel.offset_left = 8
+		rts.panel.offset_right = -8
+		rts.panel.offset_top = -176
+		rts.panel.offset_bottom = -8
+	tip_label.text = "Arkni bossangiz - qurilish; kazarma / otxonani bossangiz - askar yollash; askarni bossangiz - buyruqlar."
+
+
+func building_at(p: Vector3) -> Dictionary:
+	## sichqoncha ostidagi qal'a qismi: {"t": "keep"/bino turi/"gate"/"tower", "i": indeks}
+	if p == Vector3.INF:
+		return {}
+	var q := Vector3(p.x, 0, p.z)
+	var kf: Vector2 = FOOT["keep"]
+	var kd := q - _keep()
+	if absf(kd.x) < kf.x * 0.5 + 1.0 and absf(kd.z) < kf.y * 0.5 + 1.0:
+		return {"t": "keep", "i": 0}
+	for i in data["buildings"].size():
+		var b: Dictionary = data["buildings"][i]
+		var f: Vector2 = FOOT.get(b["t"], Vector2(8, 8))
+		var l: Vector3 = Basis(Vector3.UP, -float(b["rot"])) * (q - _v(b["p"]))
+		if absf(l.x) < f.x * 0.5 + 0.5 and absf(l.z) < f.y * 0.5 + 0.5:
+			return {"t": b["t"], "i": i}
+	for i in data["gates"].size():
+		if _v(data["gates"][i]["p"]).distance_to(q) < 5.5:
+			return {"t": "gate", "i": i}
+	return {}
+
+
+func open_ctx(t: String) -> void:
+	## panelni ochish (t = "" - yopish)
+	ctx = t
+	if rts:
+		rts.clear_sel()
+	_tool_panel.visible = t == "keep" and not walk_mode
+	_ctx_panel.visible = t != "" and t != "keep"
+	UIKit.clear(_ctx_box)
+	_ctx_cards.clear()
+	match t:
+		"barracks", "stable":
+			var need := t
+			_ctx_title.text = ("KAZARMA - piyoda askar yollash (kartani bosing: +1, Shift bilan +5)" if t == "barracks" else "OTXONA - otliq askar yollash (kartani bosing: +1, Shift bilan +5)")
+			var bst := Unit3D.building_style(_p()["country"])
+			var fac := Unit3D.faction_for(_p()["country"])
+			var col := Color(Game.countries[_p()["country"]]["color"]) if Game.countries.has(_p()["country"]) else Color("#2f7d4a")
+			for k in CastleEco.units():
+				var u: Dictionary = CastleEco.units()[k]
+				if u["needs"] != need or (u.has("only") and not (bst in u["only"])):
+					continue
+				_ctx_unit_card(k, u, fac, col)
+		"smithy":
+			_ctx_title.text = "TEMIRCHI - askarlar zirhi va qurollari"
+			var gl := CastleEco.gear(_p())
+			var defs := CastleEco.gear_defs()
+			var cur_name: String = defs[gl]["name"] if defs.has(gl) else "Oddiy kiyim"
+			var vb := VBoxContainer.new()
+			_ctx_box.add_child(vb)
+			vb.add_child(UIKit.label("Hozir: " + cur_name, 15, Color.WHITE))
+			if defs.has(gl + 1):
+				vb.add_child(UIKit.label("Keyingisi: %s (%s)\n%s" % [defs[gl + 1]["name"], CastleEco.cost_text(defs[gl + 1]["cost"]), defs[gl + 1]["info"]], 13, UIKit.INFO, true))
+				UIKit.button(vb, "Yasash", "", func():
+					var e := CastleEco.upgrade_gear(_p())
+					if e != "":
+						_msg(e, true)
+					else:
+						Sfx.play("sandon", -4.0)
+						for nd in _all_figs():
+							Unit3D.equip(nd, CastleEco.gear(_p()))
+					open_ctx("smithy"))
+			else:
+				vb.add_child(UIKit.label("Eng yaxshi zirh tayyor.", 13, UIKit.GOOD))
+		"gate":
+			_ctx_title.text = "DARVOZA"
+			var b := Button.new()
+			b.text = "Darvozani yopish" if rts.gates_open() else "Darvozani ochish"
+			b.custom_minimum_size = Vector2(220, 60)
+			b.focus_mode = Control.FOCUS_NONE
+			b.pressed.connect(func():
+				rts.toggle_gate()
+				open_ctx("gate"))
+			_ctx_box.add_child(b)
+			_ctx_box.add_child(UIKit.label("Darvoza: %s. Yopiq bo'lsa askarlar qal'adan chiqa olmaydi." % ("OCHIQ" if rts.gates_open() else "YOPIQ"), 14, UIKit.INFO, true))
+		"keep":
+			pass
+		"":
+			pass
+		_:
+			_ctx_title.text = NAMES.get(t, t)
+			_ctx_box.add_child(UIKit.label(TIPS.get(t, "Bu bino ishlamoqda."), 13, UIKit.INFO, true))
+	_refresh_ctx()
+
+
+func _ctx_unit_card(k: String, u: Dictionary, fac: String, col: Color) -> void:
+	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(150, 124)
+	b.add_theme_stylebox_override("normal", UIKit.style(UIKit.WOOD2, 5, Color(0.55, 0.4, 0.2, 0.9), 4))
+	b.add_theme_stylebox_override("hover", UIKit.style(Color(0.33, 0.23, 0.13, 0.98), 5, Color(0.95, 0.76, 0.38), 4))
+	var h := HBoxContainer.new()
+	h.set_anchors_preset(Control.PRESET_FULL_RECT)
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(h)
+	var view := ModelPreview.unit_view(fac, k, col, Vector2(64, 118))
+	view.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	h.add_child(view)
+	var vb := VBoxContainer.new()
+	vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	h.add_child(vb)
+	var nm := UIKit.label(u["name"], 14, Color("#f6e7c4"))
+	nm.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vb.add_child(nm)
+	var cnt := UIKit.label("", 22, Color.WHITE)
+	cnt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vb.add_child(cnt)
+	var cost := UIKit.label("%d oltin\n%d oziq, %d kun" % [CastleEco.unit_cost(_p(), k), u["food"], u["days"]], 11, Color("#d9b870"))
+	cost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vb.add_child(cost)
+	b.gui_input.connect(func(e: InputEvent):
+		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+			var n := 5 if (e as InputEventMouseButton).shift_pressed else 1
+			var why := CastleEco.can_recruit(_p(), k, n)
+			if why != "":
+				_msg(why, true)
+			else:
+				_recruit(k, n)
+			_refresh_ctx())
+	_ctx_box.add_child(b)
+	_ctx_cards[k] = {"count": cnt, "btn": b}
+
+
+func _refresh_ctx() -> void:
+	for k in _ctx_cards:
+		var q := 0
+		for it in data["queue"]:
+			if it["kind"] == k:
+				q += int(it["count"])
+		(_ctx_cards[k]["count"] as Label).text = "%d%s" % [int(data["army"].get(k, 0)), ("  (+%d)" % q) if q > 0 else ""]
+		var why := CastleEco.can_recruit(_p(), k, 1)
+		(_ctx_cards[k]["btn"] as Button).tooltip_text = why if why != "" else "Bosing: +1 askar (Shift: +5)"
+		(_ctx_cards[k]["btn"] as Button).modulate = Color(1, 1, 1, 1) if why == "" else Color(0.7, 0.7, 0.7, 1)
+
+
+func _build_army_tab(row: HBoxContainer) -> void:
+	## arkdagi "QO'SHIN" bo'limi: qo'mondon buyrug'i (dam, mashq, saf, devor) va josuslar
+	_ctx_army_row = row
+	var grid := GridContainer.new()
+	grid.columns = 2
+	row.add_child(grid)
+	var grp := ButtonGroup.new()
+	for t in CastleEco.TASKS:
+		var b := Button.new()
+		b.text = CastleEco.TASKS[t]
+		b.toggle_mode = true
+		b.button_group = grp
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(150, 40)
+		b.tooltip_text = TASK_TIPS[t]
+		b.button_pressed = data.get("task", "dam") == t
+		b.pressed.connect(func():
+			for nd in _all_figs():
+				if rts:
+					rts.release(nd)
+			if rts:
+				rts.clear_sel()
+			_task_mode = ""
+			data["task"] = t
+			_msg("Qo'mondon: " + TASK_TIPS[t])
+			_show_army())
+		grid.add_child(b)
+	var vb := VBoxContainer.new()
+	row.add_child(vb)
+	var info := UIKit.label("", 13, UIKit.INFO, true)
+	info.custom_minimum_size = Vector2(420, 0)
+	vb.add_child(info)
+	row.set_meta("info", info)
+	UIKit.button(vb, "Josus yollash (%d oltin)" % SiegeCastle.SPY_COST, "", func():
+		var e := SiegeCastle.hire_spy()
+		if e != "":
+			_msg(e, true)
+		_show_army())
+
+
+func _ctx_tick(delta: float) -> void:
+	_ctx_t += delta
+	if _ctx_t < 0.5:
+		return
+	_ctx_t = 0.0
+	if not _ctx_cards.is_empty():
+		_refresh_ctx()
+	if _ctx_army_row and _ctx_army_row.has_meta("info"):
+		var p := _p()
+		var g := CastleEco.gold(p)
+		var dr := float(data.get("drill", 0.0))
+		(_ctx_army_row.get_meta("info") as Label).text = "Jami: %d askar (kuch %d). Maosh: %d oltin/kun, oziq: %.0f/kun.\nTayyorgarlik: %d%%. Josuslar: %d.%s" % [
+			CastleEco.army_total(p), int(CastleEco.army_power(p)), int(g["pay"]), _food_per_day(), int(dr), Game.spies,
+			"\nOCH! Oziq yo'q." if float(data.get("hunger", 0.0)) > 0.0 else ""]
+	# askar belgilanganda pastda buyruqlar, bino paneli yopiladi
+	if rts and rts.panel:
+		var has_sel := not rts.sel.is_empty()
+		rts.panel.visible = has_sel or walk_mode
+		if rts.panel.visible:
+			rts._refresh_kinds(false)
+		if has_sel and ctx != "":
+			ctx = ""
+			_ctx_panel.visible = false
+			_tool_panel.visible = false

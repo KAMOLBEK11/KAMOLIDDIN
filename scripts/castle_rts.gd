@@ -20,7 +20,7 @@ var aim_mode := false            # keyingi bosish - kamonchilar uchun nishon
 var arrows: Array = []
 var panel: PanelContainer
 var info: Label
-var cmd_box: VBoxContainer
+var cmd_box: HBoxContainer
 var gate_btn: Button
 var box_rect: Panel
 var _box_from := Vector2.ZERO
@@ -318,16 +318,29 @@ func on_release(pos: Vector2, dragged: bool, shift: bool, double: bool) -> bool:
 			else:
 				select_list([u], shift)
 		return true
-	if sel.is_empty():
-		return false
 	var gp: Vector3 = c._ground_at(pos)
 	if gp == Vector3.INF:
 		return true
-	if aim_mode:
+	if aim_mode and not sel.is_empty():
 		order_shoot(gp)
-	else:
+		return true
+	if move_mode and not sel.is_empty():
+		move_mode = false
 		order_move(gp)
+		return true
+	# bino / ark / darvoza bosildi - pastda o'shaning paneli
+	var bd: Dictionary = c.building_at(gp)
+	if not bd.is_empty():
+		c.open_ctx(bd["t"])
+		return true
+	if sel.is_empty():
+		c.open_ctx("")
+		return true
+	order_move(gp)
 	return true
+
+
+var move_mode := false
 
 
 func on_right_click(pos: Vector2) -> bool:
@@ -1084,40 +1097,79 @@ func _build_ui() -> void:
 	box_rect.visible = false
 	c.hud.add_child(box_rect)
 	panel = PanelContainer.new()
-	panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	panel.offset_left = 8
-	panel.offset_top = 70
-	panel.custom_minimum_size = Vector2(250, 0)
-	panel.add_theme_stylebox_override("panel", UIKit.style(Color(0.05, 0.08, 0.12, 0.62), 12, Color(0.6, 0.8, 1.0, 0.22), 10))
+	panel.add_theme_stylebox_override("panel", UIKit.style(Color(0.05, 0.08, 0.12, 0.7), 12, Color(0.6, 0.8, 1.0, 0.22), 10))
+	panel.visible = false
 	c.hud.add_child(panel)
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 14)
+	panel.add_child(hb)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 4)
-	panel.add_child(v)
+	hb.add_child(v)
 	info = UIKit.label("", 13, Color("#f3d58a"), true)
-	info.custom_minimum_size = Vector2(240, 0)
+	info.custom_minimum_size = Vector2(250, 0)
 	v.add_child(info)
 	gate_btn = _btn(v, "", toggle_gate)
-	cmd_box = VBoxContainer.new()
-	cmd_box.add_theme_constant_override("separation", 3)
-	v.add_child(cmd_box)
+	gate_btn.visible = false
+	# askar turlari: bosilsa - shu turdagi hammasi belgilanadi (qo'mondon rejimida ham)
+	kinds_box = HFlowContainer.new()
+	kinds_box.custom_minimum_size = Vector2(250, 0)
+	v.add_child(kinds_box)
+	cmd_box = HBoxContainer.new()
+	cmd_box.add_theme_constant_override("separation", 12)
+	hb.add_child(cmd_box)
 	var g1 := _grid(cmd_box, "SAF")
 	_btn(g1, "Qator", func(): order_form("line"))
 	_btn(g1, "To'rtburchak", func(): order_form("square"))
 	_btn(g1, "Qalqon devori", func(): order_form("shield"))
 	_btn(g1, "Halqa", func(): order_form("ring"))
-	_btn(g1, "TOSHBAQA (qalqonlar tepada)", func(): order_testudo(false))
-	_btn(g1, "Qo'mondonni o'rab toshbaqa", func(): order_testudo(true))
+	_btn(g1, "TOSHBAQA", func(): order_testudo(false))
+	_btn(g1, "Qo'mondon toshbaqada", func(): order_testudo(true))
 	var g2 := _grid(cmd_box, "HOLAT")
 	_btn(g2, "Qalqon bilan himoya", func(): order_stance("block"))
 	_btn(g2, "Hujumga shay", func(): order_stance("attack"))
 	_btn(g2, "Qo'mondonni qo'riqla", order_guard)
 	_btn(g2, "Nishonga o'q uz", order_aim)
+	_btn(g2, "Ortimdan yur", func(): order_follow(_valid_sel()))
+	_btn(g2, "Olg'a (hujum)", func(): order_charge(_valid_sel()))
 	var g3 := _grid(cmd_box, "JOY")
+	_btn(g3, "Shu yerga yur", func():
+		move_mode = true
+		c._msg("Boriladigan joyni bosing"))
 	_btn(g3, "Devorga chiq", order_wall)
 	_btn(g3, "To'xta", func(): order_stance("idle"))
 	_btn(g3, "Safga qayt", order_home)
 	_btn(g3, "Belgini olish", clear_sel)
 	_refresh_ui()
+
+
+var kinds_box: HFlowContainer
+var _kinds_t := 0.0
+
+
+var _kinds_sig := ""
+
+
+func _refresh_kinds(force := true) -> void:
+	if kinds_box == null:
+		return
+	var cnt := {}
+	for n in units():
+		var k: String = (n as Node3D).get_meta("kind", "")
+		cnt[k] = int(cnt.get(k, 0)) + 1
+	var sig := str(cnt)
+	if not force and sig == _kinds_sig:
+		return
+	_kinds_sig = sig
+	UIKit.clear(kinds_box)
+	for k in cnt:
+		var nm: String = str(CastleEco.units().get(k, {"name": k})["name"])
+		var b := _btn(kinds_box, "%s (%d)" % [nm, cnt[k]], func():
+			var lst: Array = units().filter(func(x): return (x as Node3D).get_meta("kind", "") == k)
+			select_list(lst, Input.is_key_pressed(KEY_SHIFT)))
+		b.custom_minimum_size = Vector2(118, 28)
+	if not cnt.is_empty():
+		_btn(kinds_box, "HAMMASI (%d)" % units().size(), func(): select_list(units())).custom_minimum_size = Vector2(118, 28)
 
 
 func _grid(parent: Control, title: String) -> GridContainer:
@@ -1144,12 +1196,13 @@ func _btn(parent: Control, t: String, cb: Callable) -> Button:
 func _refresh_ui() -> void:
 	if info == null:
 		return
+	_refresh_kinds()
 	gate_btn.text = "Darvozani yopish" if gates_open() else "Darvozani ochish"
-	gate_btn.visible = not c.data["gates"].is_empty()
+	gate_btn.visible = false
 	var list := _valid_sel()
 	cmd_box.visible = not list.is_empty()
 	if list.is_empty():
-		info.text = "ASKARLAR: askarni bosing yoki ramka chizing. Yerni bosing - o'sha yerga boradi." + ("\nDarvoza: %s" % ("OCHIQ" if gates_open() else "YOPIQ") if not c.data["gates"].is_empty() else "")
+		info.text = "ASKARLAR: turini tanlang (pastdagi tugmalar) yoki askarni bosing / ramka chizing."
 		return
 	var cnt := {}
 	for n in list:
@@ -1158,4 +1211,4 @@ func _refresh_ui() -> void:
 	var parts: Array = []
 	for k in cnt:
 		parts.append("%d %s" % [cnt[k], str(CastleEco.units().get(k, {"name": k})["name"]).to_lower()])
-	info.text = "BELGILANDI: %s\nYerni bosing - yuradi. Esc - belgini olish." % ", ".join(parts)
+	info.text = "BELGILANDI: %s" % ", ".join(parts)
