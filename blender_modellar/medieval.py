@@ -94,6 +94,10 @@ FACTIONS = {
         'metal': '#7d848c', 'leather': '#5a3a24', 'turban': '#e8e2d2', 'beard': '#141210', 'team': '#c9a03a',
         'xitoy': True,
     },
+    'arabi': {  # Arab qo'shini (XIV-XV asr): oq-qumrang to'n, oq salla, charm sovut
+        'coat': '#d9cdb2', 'coat2': '#7a5a34', 'trouser': '#5a4a38', 'skin': '#b88660', 'boots': '#3a2618',
+        'metal': '#9aa0a6', 'leather': '#6b4a2e', 'turban': '#f4f0e6', 'beard': '#1a1410', 'team': '#2f6b4a',
+    },
     'ozbek': {  # 2-zamon (1850-1870) Buxoro/Xiva/Qo'qon askarlari: yo'l-yo'l to'n, salla yoki qora telpak
         'coat': '#5a2440', 'coat2': '#c9a03a', 'trouser': '#3a3530', 'skin': '#c8956c', 'boots': '#2e2018',
         'metal': '#9aa0a6', 'leather': '#5e4026', 'turban': '#ece6d6', 'beard': '#1e1712', 'team': '#2f7d4a',
@@ -144,6 +148,110 @@ def stripe(ob, slot, cols, n=28):
         a = math.atan2(poly.center.y, poly.center.x)
         k = int((a + math.pi) / (2 * math.pi) * n) % len(cols)
         poly.material_index = base + k
+
+
+def _tube(name, a, b, r, groups, verts=4):
+    """a->b ingichka quvur; groups: (uchidagi guruh, oxiridagi guruh)"""
+    bm = bmesh.new()
+    d = (b - a).normalized()
+    up = Vector((0, 0, 1)) if abs(d.z) < 0.9 else Vector((1, 0, 0))
+    u = d.cross(up).normalized()
+    v = d.cross(u).normalized()
+    rings = []
+    for c in (a, b):
+        ring = []
+        for k in range(verts):
+            t = k / verts * 2 * math.pi
+            ring.append(bm.verts.new(c + (u * math.cos(t) + v * math.sin(t)) * r))
+        rings.append(ring)
+    for k in range(verts):
+        bm.faces.new((rings[0][k], rings[0][(k + 1) % verts], rings[1][(k + 1) % verts], rings[1][k]))
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    ob = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(ob)
+    g0 = ob.vertex_groups.new(name=groups[0])
+    g1 = ob.vertex_groups.new(name=groups[1]) if groups[1] != groups[0] else g0
+    g0.add(list(range(verts)), 1.0, 'REPLACE')
+    g1.add(list(range(verts, 2 * verts)), 1.0, 'REPLACE')
+    return ob
+
+
+def archery_rig(rig, Matrix):
+    """kamon tori va o'q.
+    BowB - chap qo'lning bolasi, Copy Rotation bilan doim tik turadi (qorni nishonga, +X);
+    tor uchlari BowB ga, o'rtasi 'Nock' suyagiga bog'langan. Otishda Nock o'ng qo'lga ergashadi (ta'siri kalitlangan);
+    o'q 'ArrowB' da (Nock bolasi, Damped Track bilan doim kamon dastasiga qaraydi), faqat o'q qo'yilganda ko'rinadi."""
+    hl = rig.pose.bones['Hand.L']
+    grip = hl.tail.copy()                          # GRIP holatida kamon dastasi (armatura fazosi)
+    MAPL = hl.bone.matrix_local @ hl.matrix.inverted()
+    bpy.context.view_layer.objects.active = rig
+    bpy.ops.object.mode_set(mode='EDIT')
+    eb = rig.data.edit_bones
+    gb = MAPL @ grip
+    b0 = eb.new('BowB'); b0.head = gb; b0.tail = gb + Vector((0, 0.08, 0)); b0.parent = eb['Hand.L']
+    bpy.ops.object.mode_set(mode='OBJECT')
+    cr = rig.pose.bones['BowB'].constraints.new('COPY_ROTATION')
+    cr.target = rig      # armatura obyekti: kamon dunyoga nisbatan tik
+    bpy.context.view_layer.update()
+    bb = rig.pose.bones['BowB']
+    MAP = bb.bone.matrix_local @ bb.matrix.inverted()
+    mid = bb.head + Vector((-0.055, 0, 0))
+    t1 = bb.head + Vector((-0.06, 0, 0.55))
+    t2 = bb.head + Vector((-0.06, 0, -0.55))
+    m_rest = MAP @ mid
+    fwd = (MAP.to_3x3() @ Vector((1, 0, 0))).normalized()
+    bpy.ops.object.mode_set(mode='EDIT')
+    eb = rig.data.edit_bones
+    b = eb.new('Nock'); b.head = m_rest; b.tail = m_rest + fwd * 0.06; b.parent = eb['BowB']
+    b2 = eb.new('ArrowB'); b2.head = m_rest; b2.tail = m_rest + fwd * 0.06; b2.parent = b
+    bpy.ops.object.mode_set(mode='OBJECT')
+    c = rig.pose.bones['Nock'].constraints.new('COPY_LOCATION')
+    c.name = 'DrawString'
+    c.target = rig; c.subtarget = 'Hand.R'; c.head_tail = 0.55
+    c.influence = 0.0
+    dt = rig.pose.bones['ArrowB'].constraints.new('DAMPED_TRACK')
+    dt.target = rig; dt.subtarget = 'BowB'; dt.head_tail = 0.0; dt.track_axis = 'TRACK_Y'
+    # kamonni BowB ga ko'chirish (joyi o'zgarmaydi)
+    bow = bpy.data.objects.get('Bow')
+    if bow:
+        mw = bow.matrix_world.copy()
+        bow.parent_bone = 'BowB'
+        bow.matrix_world = mw
+    smat = mat('String', '#ddd8c8', 0.9)
+    parts = [_tube('StringTop', MAP @ t1, m_rest, 0.0035, ('BowB', 'Nock')),
+             _tube('StringBot', MAP @ t2, m_rest, 0.0035, ('BowB', 'Nock'))]
+    tip = m_rest + fwd * 0.8
+    parts.append(_tube('ArrowShaft', m_rest, tip, 0.006, ('ArrowB', 'ArrowB'), 5))
+    parts.append(_tube('ArrowHead', tip, tip + fwd * 0.07, 0.013, ('ArrowB', 'ArrowB'), 3))
+    parts.append(_tube('Fletch', m_rest + fwd * 0.02, m_rest + fwd * 0.14, 0.02, ('ArrowB', 'ArrowB'), 3))
+    mats = [smat, smat, mat('ArrowWood', '#a07a4a', 0.8), mat('ArrowIron', '#4a4a4e', 0.5, 0.7), mat('Fletching', '#e8e2d0', 0.9)]
+    for ob, m_ in zip(parts, mats):
+        ob.data.materials.append(m_)
+        ob.parent = rig
+        md = ob.modifiers.new('Armature', 'ARMATURE')
+        md.object = rig
+    ab = rig.pose.bones['ArrowB']
+    for act in bpy.data.actions:
+        if act.name == 'Grip':
+            continue
+        rig.animation_data.action = act
+        keys = [(1, 0.001, 0.0)]
+        if act.name == 'Attack':
+            keys = [(1, 0.001, 0.0), (8, 1.0, 0.0), (11, 1.0, 1.0), (28, 1.0, 1.0), (29, 0.001, 0.0)]
+        elif act.name == 'Block':        # nishonga olib turish: o'q tortilgan
+            keys = [(1, 1.0, 1.0)]
+        for f, sc, inf in keys:
+            ab.scale = (sc, sc, sc)
+            ab.keyframe_insert('scale', frame=f)
+            c.influence = inf
+            c.keyframe_insert('influence', frame=f)
+        for fc in act.fcurves:
+            if 'ArrowB' in fc.data_path or 'DrawString' in fc.data_path:
+                for kp in fc.keyframe_points:
+                    kp.interpolation = 'CONSTANT'
+    c.influence = 0.0
+    ab.scale = (1, 1, 1)
 
 
 def build_soldier(faction, kind):
@@ -629,7 +737,6 @@ def build_soldier(faction, kind):
                 bmw.faces.new((a[k], a[(k + 1) % 4], b[(k + 1) % 4], b[k]))
         bmw.faces.new(rows[0]); bmw.faces.new(rows[-1][::-1])
         bp = [_obj_from_bm('BowLimb', bmw, LT)]
-        bp.append(box('String', (0.004, 0.004, 1.08), (-0.055, 0, 0), mat('String', '#ddd8c8', 0.9)))
         bow = join('Bow', bp, origin=(0, 0, 0))
         weapon_parts.append((bow, 'Hand.L', 'bow'))
         qv = [cyl('Quiver', 0.06, 0.5, (0, 0, 0), LT, axis='Z', verts=10)]
@@ -744,7 +851,8 @@ def build_soldier(faction, kind):
                 'UpperArm.L': (85, 0, 0), 'ForeArm.L': (0, 0, 0), 'Hand.L': (-85, 0, 0),
                 'UpperArm.R': (-80, 10, 0), 'ForeArm.R': (0, -150, 0), 'Hand.R': (0, 0, 0)}
         STRIKE = merge(WIND, {'UpperArm.R': (0, 20, 0), 'ForeArm.R': (0, 70, 0)})
-        BLOCK = WIND
+        BLOCK = dict(WIND)
+        BLOCK.update({'UpperArm.R': (120, 0, -120), 'ForeArm.R': (0, -120, 150), 'Chest': (0, -4, -14)})   # tortib nishonga olish
     GRIP = locals().get('GRIP', READY)
     RIDE = {'Thigh.L': (22, -80, 0), 'Thigh.R': (-22, -80, 0), 'Shin.L': (0, 75, 0), 'Shin.R': (0, 75, 0),
             'Foot.L': (0, -10, 0), 'Foot.R': (0, -10, 0), 'Spine': (0, 6, 0)}
@@ -812,10 +920,26 @@ def build_soldier(faction, kind):
         merge = rifle_abs
     new_action('Attack')
     if kind == 'kamonchi':
+        # haqiqiy otish: o'qni o'qdondan oladi -> kamonga qo'yadi -> torni yuzgacha tortadi (gavda egiladi) -> qo'yib yuboradi
+        def over(b_, d_):
+            o_ = dict(b_)
+            o_.update(d_)
+            return o_
+        # (qo'l burchaklari Blender'da qidiruv bilan topilgan: o'ng qo'l kamon yonida / yuz yonida)
+        REACH = over(WIND, {'UpperArm.R': (-20, -150, -40), 'ForeArm.R': (0, -60, 0), 'Head': (0, 0, 60)})
+        NOCK = over(WIND, {'UpperArm.R': (90, 0, 0), 'ForeArm.R': (0, 0, -30), 'Hand.R': (0, 0, 0)})
+        HALF = over(WIND, {'UpperArm.R': (110, 0, -60), 'ForeArm.R': (0, -60, 60)})
+        DRAWN = over(WIND, {'UpperArm.R': (120, 0, -120), 'ForeArm.R': (0, -120, 150), 'Chest': (0, -4, -14), 'Spine': (0, -3, -8)})
+        REL = over(DRAWN, {'UpperArm.R': (120, 0, -140), 'ForeArm.R': (0, -100, 170), 'Chest': (0, -2, -10)})
         apply_pose(WIND, 1)
-        apply_pose(merge(WIND, {'UpperArm.R': (0, 0, 8), 'ForeArm.R': (0, 0, 12)}), 14)   # tortish
-        apply_pose(STRIKE, 17)                                                                # qo'yib yuborish
-        apply_pose(WIND, 30)
+        apply_pose(REACH, 6)                        # o'qdondan o'q olish
+        apply_pose(NOCK, 11)                        # o'qni torga qo'yish
+        apply_pose(HALF, 16)                        # tortish
+        apply_pose(DRAWN, 21)                       # to'liq tortilgan - gavda orqaga egiladi
+        apply_pose(over(DRAWN, {'Chest': (0, -5, -15)}), 27)  # nishonga olib ushlab turish
+        apply_pose(REL, 29)                         # qo'yib yuborish: qo'l orqaga siltanadi
+        apply_pose(over(REL, {'Chest': (0, 0, -10)}), 34)
+        apply_pose(WIND, 44)
     else:
         apply_pose(READY, 1)
         apply_pose(merge(READY, WIND), 8, (-0.04, 0, 0))
@@ -962,6 +1086,8 @@ def build_soldier(faction, kind):
         ob.parent_bone = bone
         ob.matrix_world = mw
 
+    if kind == 'kamonchi':
+        archery_rig(rig, Matrix)
     rig.animation_data.action = bpy.data.actions['Idle']
     bpy.data.actions.remove(grip_act)
     name = '%s_%s' % (faction, kind)
@@ -988,6 +1114,16 @@ def preview(rig, name, acts):
     sc.camera = cam
     for act in acts:
         rig.animation_data.action = bpy.data.actions[act]
+        if act == 'Attack' and 'kamonchi' in name:
+            for fr_ in (1, 6, 11, 16, 21, 29):
+                sc.frame_set(fr_)
+                a_ = math.radians(-70)
+                t_ = Vector((0, 0, 1.1))
+                cam.location = t_ + Vector((math.cos(a_) * 3.4, math.sin(a_) * 3.4, 0.5))
+                cam.rotation_euler = (t_ - cam.location).to_track_quat('-Z', 'Y').to_euler()
+                sc.render.filepath = os.path.join(OUT, 'prev_%s_shoot%02d.png' % (name, fr_))
+                bpy.ops.render.render(write_still=True)
+            continue
         fr = {'Attack': 13 if 'kamonchi' not in name else 14, 'Walk': 9, 'Run': 5, 'Look': 26, 'Death1': 30, 'Block': 1, 'Fire': 3, 'Reload': 64, 'Kneel_Fire': 14, 'Attack2': 13}.get(act, 1)
         sc.frame_set(fr)
         a = math.radians(-55 if 'kamonchi' not in name else -100)
@@ -1000,7 +1136,7 @@ def preview(rig, name, acts):
 
 
 FAC = 'osiyo'
-for f_ in ('rus2', 'ingliz', 'yevropa2', 'usmonli', 'xitoy2', 'rus', 'xitoy', 'ozbek'):
+for f_ in ('rus2', 'ingliz', 'yevropa2', 'usmonli', 'xitoy2', 'rus', 'xitoy', 'ozbek', 'arabi'):
     if f_ in ARGS:
         FAC = f_
         break

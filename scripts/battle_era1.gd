@@ -1355,6 +1355,20 @@ func _shoot(f: Dictionary, e: Dictionary) -> void:
 			"flat": true, "dmg": st["bullet"], "chance": st["chance"]})
 		return
 	var dur := from.distance_to(to) / 48.0
+	if f["kind"] == "kamonchi" and not f.get("cmd", false) and is_inside_tree():
+		# kamonchi avval o'qni oladi, torni tortadi - o'q animatsiyadagi "qo'yib yuborish" paytida (1.2 s) uchadi
+		a.visible = false
+		var fi: int = f["i"]
+		get_tree().create_timer(1.18).timeout.connect(func():
+			if not is_instance_valid(a):
+				return
+			if not figs[fi]["alive"]:
+				a.queue_free()
+				return
+			var fr: Vector3 = figs[fi]["pos"] + Vector3(0, 1.5, 0)
+			a.visible = true
+			arrows.append({"node": a, "from": fr, "to": to, "t": 0.0, "dur": fr.distance_to(to) / 48.0, "target": e["i"]}))
+		return
 	arrows.append({"node": a, "from": from, "to": to, "t": 0.0, "dur": dur, "target": e["i"]})
 
 

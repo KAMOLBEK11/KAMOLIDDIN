@@ -22,7 +22,7 @@ const GEMINI_SCALE := 0.86     # Gemini modellari ~2.1 m - bizning 1.8 m askarla
 const CULTURE_FACTION := {"xitoy": "xitoy", "rus": "rus", "fransuz": "yevropa", "turk": "temur", "arab": "arab", "italyan": "italiya", "yunon": "italiya"}
 ## G'arbiy va Markaziy Yevropa davlatlari (ma'lumotda "boshqa" madaniyatli) - Yevropa ritsarlari
 const EUROPE := ["ENG", "SCO", "CAS", "ARA", "NAV", "POR", "HRE", "HUN", "POL", "TEU", "KAL", "BOS", "MOL", "WAL"]
-const BLENDER_FACTIONS := ["osiyo", "rus", "xitoy", "ozbek", "rus2", "ingliz", "yevropa2", "usmonli", "xitoy2"]   # o'zimiz Blender'da yasagan (+X ga qaragan, otda o'tira oladi)
+const BLENDER_FACTIONS := ["osiyo", "rus", "xitoy", "arabi", "ozbek", "rus2", "ingliz", "yevropa2", "usmonli", "xitoy2"]   # o'zimiz Blender'da yasagan (+X ga qaragan, otda o'tira oladi)
 const ERA2_FACTIONS := ["ozbek", "rus2", "ingliz", "yevropa2", "usmonli", "xitoy2"]       # 1850-1880 askarlari models/era2 papkasida
 ## 2-zamon: madaniyat -> qo'shin modellari
 const CULTURE_FACTION2 := {"ozbek": "ozbek", "rus": "rus2", "ingliz": "ingliz", "yevropa": "yevropa2", "usmonli": "usmonli", "xitoy": "xitoy2", "boshqa": "usmonli"}
@@ -135,7 +135,13 @@ static func faction_for(country: String) -> String:
 	return "temur"
 
 
+## kamonchilar: Blender'da yasalgan haqiqiy otish animatsiyali modellar (o'qdondan o'q oladi, torni yuzgacha tortadi)
+const ARCHER := {"temur": "osiyo", "arab": "arabi", "yevropa": "rus", "italiya": "rus"}
+
+
 static func _model_path(faction: String, kind: String) -> String:
+	if kind == "kamonchi" and ARCHER.has(faction) and ResourceLoader.exists("res://models/era1/%s_kamonchi.glb" % ARCHER[faction]):
+		return "res://models/era1/%s_kamonchi.glb" % ARCHER[faction]
 	var p := "res://models/%s/%s_%s.glb" % ["era2" if faction in ERA2_FACTIONS else "era1", faction, kind]
 	if ResourceLoader.exists(p):
 		return p
