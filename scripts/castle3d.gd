@@ -921,6 +921,19 @@ func _unhandled_key_input(e: InputEvent) -> void:
 	if not (e is InputEventKey and e.pressed):
 		return
 	var k := (e as InputEventKey).keycode
+	if k == KEY_TAB:
+		_toggle_walk()
+		return
+	if walk_mode and k in [KEY_1, KEY_2, KEY_3]:
+		_walk_weapon = [KEY_1, KEY_2, KEY_3].find(k)
+		_make_cmdr_model()
+		return
+	if walk_mode and k == KEY_F:
+		_inspect()
+		return
+	if k == KEY_ESCAPE and walk_mode:
+		_toggle_walk()
+		return
 	if k == KEY_ESCAPE:
 		if tool == "" and not has_start and not _leaving:
 			_leaving = true
@@ -935,11 +948,16 @@ func _unhandled_key_input(e: InputEvent) -> void:
 func _process(delta: float) -> void:
 	if cam == null:
 		return
+	if walk_mode:
+		_walk(delta)
 	var dir := Vector3.ZERO
-	if Input.is_key_pressed(KEY_A): dir.x -= 1
-	if Input.is_key_pressed(KEY_D): dir.x += 1
-	if Input.is_key_pressed(KEY_W): dir.z -= 1
-	if Input.is_key_pressed(KEY_S): dir.z += 1
+	if walk_mode:
+		pass
+	elif Input.is_key_pressed(KEY_A): dir.x -= 1
+	if not walk_mode:
+		if Input.is_key_pressed(KEY_D): dir.x += 1
+		if Input.is_key_pressed(KEY_W): dir.z -= 1
+		if Input.is_key_pressed(KEY_S): dir.z += 1
 	var yaw := 0.0
 	if Input.is_key_pressed(KEY_Q): yaw -= 1
 	if Input.is_key_pressed(KEY_E): yaw += 1
@@ -962,6 +980,171 @@ func _process(delta: float) -> void:
 	if _army_t > 0.4:
 		_army_t = 0.0
 		_refresh_army()
+
+
+# ================================================================ qo'mondon bo'lib yurish
+## Tab - qo'mondonning o'zi bo'lib qal'ada yayov (yoki otda) yurish. WASD - yurish, Shift - yugurish,
+## sichqonchaning o'ng tugmasi / Q-E - kamerani aylantirish, 1 - nayza va qalqon, 2 - qilich, 3 - otda, F - askarlarni ko'zdan kechirish.
+const WALK_KINDS := ["nayzachi", "qilichboz", "otliq"]
+const WALK_NAMES := ["Nayza va qalqon", "Qilich", "Otda"]
+var walk_mode := false
+var _side_panel: Control
+var _tool_panel: Control
+var _walk_weapon := 1
+var _walk_hint: Label
+var _walk_anim := ""
+var _saved_cam := []
+
+
+func _toggle_walk() -> void:
+	if not walk_mode:
+		_ensure_cmdr()
+		if cmdr == null or not is_instance_valid(cmdr):
+			# askar yo'q bo'lsa ham qo'mondon bor
+			var col := Color(Game.countries[_p()["country"]]["color"]) if Game.countries.has(_p()["country"]) else Color("#2f7d4a")
+			cmdr = Unit3D.soldier(Unit3D.faction_for(_p()["country"]), "qilichboz", col)
+			army_root.add_child(cmdr)
+			cmdr.position = _keep() + _muster_dir() * 14.0
+			cmdr.set_meta("cmd", true)
+	walk_mode = not walk_mode
+	_set_tool("")
+	if _side_panel:
+		_side_panel.visible = not walk_mode
+	if _tool_panel:
+		_tool_panel.visible = not walk_mode
+	if walk_mode:
+		_saved_cam = [cam_target, cam_dist, _tdist, cam_yaw]
+		if cmdr.has_meta("tw") and (cmdr.get_meta("tw") as Tween).is_valid():
+			(cmdr.get_meta("tw") as Tween).kill()
+		_make_cmdr_model()
+		cam_dist = 9.0
+		_tdist = 9.0
+		cam_yaw = cmdr.rotation.y - PI / 2.0
+		if _walk_hint == null:
+			_walk_hint = UIKit.label("", 14, Color("#f3d58a"))
+			_walk_hint.set_anchors_preset(Control.PRESET_CENTER_TOP)
+			_walk_hint.offset_top = 92
+			_walk_hint.offset_left = -420
+			_walk_hint.offset_right = 420
+			_walk_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			hud.add_child(_walk_hint)
+		_walk_hint.visible = true
+		_msg("Siz qo'mondonsiz: qal'ani aylanib chiqing")
+	else:
+		if _walk_hint:
+			_walk_hint.visible = false
+		if _saved_cam.size() == 4:
+			cam_target = _saved_cam[0]
+			cam_dist = _saved_cam[1]
+			_tdist = _saved_cam[2]
+			cam_yaw = _saved_cam[3]
+		_task_mode = ""        # qo'mondon yana saf oldiga qaytadi
+	_apply_cam()
+
+
+func _make_cmdr_model() -> void:
+	## qo'mondonni tanlangan qurol bilan qayta yasash (nayza+qalqon / qilich / otda)
+	if cmdr == null or not is_instance_valid(cmdr):
+		return
+	var pos := cmdr.position
+	var rot := cmdr.rotation.y
+	cmdr.queue_free()
+	var col := Color(Game.countries[_p()["country"]]["color"]) if Game.countries.has(_p()["country"]) else Color("#2f7d4a")
+	var fac := Unit3D.faction_for(_p()["country"])
+	var k: String = WALK_KINDS[_walk_weapon]
+	if Game.era == 2 and k == "nayzachi":
+		k = "sarboz"
+	cmdr = Unit3D.cavalry(fac, "otliq", col) if k == "otliq" else Unit3D.soldier(fac, k, col)
+	cmdr.scale = Vector3.ONE * 1.08
+	army_root.add_child(cmdr)
+	Unit3D.equip(cmdr, CastleEco.gear(_p()))
+	cmdr.position = pos
+	cmdr.rotation.y = rot
+	cmdr.set_meta("cmd", true)
+	_walk_anim = ""
+	_msg("Qo'mondon qurolini almashtirdi: " + WALK_NAMES[_walk_weapon])
+
+
+func _walk_play(a: String) -> void:
+	if _walk_anim == a:
+		return
+	_walk_anim = a
+	var horse := Unit3D.rider_of(cmdr) != null
+	if horse:
+		Unit3D.play(cmdr, {"Idle": "Idle", "Walk": "Walk", "Run": "Gallop"}.get(a, a))
+		var rd := Unit3D.rider_of(cmdr)
+		if rd:
+			Unit3D.play(rd, "Ride")
+	else:
+		Unit3D.play(cmdr, a)
+
+
+func _walk(delta: float) -> void:
+	if cmdr == null or not is_instance_valid(cmdr):
+		walk_mode = false
+		return
+	var inp := Vector2.ZERO
+	if Input.is_key_pressed(KEY_A): inp.x -= 1
+	if Input.is_key_pressed(KEY_D): inp.x += 1
+	if Input.is_key_pressed(KEY_W): inp.y -= 1
+	if Input.is_key_pressed(KEY_S): inp.y += 1
+	var horse := Unit3D.rider_of(cmdr) != null
+	var run := Input.is_key_pressed(KEY_SHIFT)
+	if inp != Vector2.ZERO:
+		var mv := Basis(Vector3.UP, cam_yaw) * Vector3(inp.x, 0, inp.y).normalized()
+		var sp := (9.0 if run else 4.0) if horse else (4.2 if run else 1.8)
+		var np := cmdr.position + mv * sp * delta
+		np = np.clamp(Vector3(-AREA * 1.5, 0, -AREA * 1.5), Vector3(AREA * 1.5, 0, AREA * 1.5))
+		# binolar ichidan o'tmaydi
+		var ok := true
+		for b in data["buildings"]:
+			var f: Vector2 = FOOT.get(b["t"], Vector2(8, 8))
+			if _v(b["p"]).distance_to(np) < minf(f.x, f.y) * 0.45 and _v(b["p"]).distance_to(np) < _v(b["p"]).distance_to(cmdr.position):
+				ok = false
+		if _keep().distance_to(np) < FOOT["keep"].x * 0.5 and _keep().distance_to(np) < _keep().distance_to(cmdr.position):
+			ok = false
+		if ok:
+			cmdr.position = np
+		cmdr.rotation.y = lerp_angle(cmdr.rotation.y, atan2(-mv.z, mv.x), 1.0 - exp(-10.0 * delta))
+		_walk_play("Run" if run else "Walk")
+	elif _walk_anim != "Cheer" or not (Unit3D.anim(cmdr) and Unit3D.anim(cmdr).is_playing()):
+		_walk_play("Idle")
+	cam_target = cam_target.lerp(cmdr.position + Vector3(0, 1.0, 0), 1.0 - exp(-8.0 * delta))
+	var yaw := 0.0
+	if Input.is_key_pressed(KEY_Q): yaw -= 1
+	if Input.is_key_pressed(KEY_E): yaw += 1
+	cam_yaw += yaw * 1.6 * delta
+	_apply_cam()
+	# yaqin askarlar qo'mondonga qarab turadi
+	var near := 0
+	for n in _all_figs():
+		var nd: Node3D = n
+		if nd.position.distance_to(cmdr.position) < 6.0 and not nd.get_meta("post", false):
+			near += 1
+	if _walk_hint:
+		_walk_hint.text = "QO'MONDON: %s%s\nWASD yurish, Shift yugurish, Q/E qarash  |  1 nayza+qalqon, 2 qilich, 3 otda  |  F ko'zdan kechirish  |  Tab chiqish" % [
+			WALK_NAMES[_walk_weapon], "  -  yaqinda %d askar" % near if near > 0 else ""]
+
+
+func _inspect() -> void:
+	## qo'mondon yaqinidagi askarlarni ko'zdan kechiradi: ular qaddini rostlab salom beradi, ruhi ko'tariladi
+	if cmdr == null:
+		return
+	var n_ok := 0
+	for n in _all_figs():
+		var nd: Node3D = n
+		if nd.position.distance_to(cmdr.position) < 9.0:
+			var d := cmdr.position - nd.position
+			nd.rotation.y = atan2(-d.z, d.x)
+			_act(nd, "Cheer")
+			n_ok += 1
+	_walk_play("Cheer")
+	_act(cmdr, "Cheer")
+	if n_ok > 0:
+		data["drill"] = minf(100.0, float(data.get("drill", 0.0)) + 0.3)
+		_msg("%d askar qo'mondonni olqishladi - ruhi ko'tarildi" % n_ok)
+	else:
+		_msg("Yaqinda askar yo'q - saf oldiga boring", true)
 
 
 # ================================================================ qo'mondon va mashq
@@ -1011,6 +1194,8 @@ func _act(n: Node3D, a: String) -> void:
 
 
 func _ensure_cmdr() -> void:
+	if walk_mode:
+		return
 	var total := _all_figs().size()
 	if total == 0:
 		if cmdr != null and is_instance_valid(cmdr):
@@ -1103,7 +1288,7 @@ func _switch_task(t: String) -> void:
 				node.set_meta("tw", tw0)
 			else:
 				_go(node, node.get_meta("slot"), face)
-	if cmdr != null and is_instance_valid(cmdr):
+	if cmdr != null and is_instance_valid(cmdr) and not walk_mode:
 		_go(cmdr, _cmd_home(), face + PI)
 
 
@@ -1184,7 +1369,7 @@ func _update_drill(delta: float) -> void:
 					var rd := Unit3D.rider_of(node)
 					if rd:
 						Unit3D.play(rd, "Ride")
-			if c_ok:
+			if c_ok and not walk_mode:
 				var home := _cmd_home() + right * 3.0
 				if not (cmdr.has_meta("tw") and (cmdr.get_meta("tw") as Tween).is_valid() and (cmdr.get_meta("tw") as Tween).is_running()):
 					cmdr.position = home + fwd * off
@@ -1206,6 +1391,8 @@ func _update_drill(delta: float) -> void:
 
 
 func _cmd_walk(delta: float, fwd: Vector3, right: Vector3, face: float) -> void:
+	if walk_mode:
+		return
 	if cmdr.has_meta("tw") and (cmdr.get_meta("tw") as Tween).is_valid() and (cmdr.get_meta("tw") as Tween).is_running():
 		return
 	if _cmd_pause > 0.0:
@@ -1268,6 +1455,8 @@ func _build_hud() -> void:
 	money_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	money_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	h.add_child(money_label)
+	var wb := UIKit.button(h, "Qo'mondon bo'lish (Tab)", "", _toggle_walk, true)
+	wb.focus_mode = Control.FOCUS_NONE
 	var grp := ButtonGroup.new()
 	for sp in [0, 1, 2, 5]:
 		var b := Button.new()
@@ -1285,6 +1474,7 @@ func _build_hud() -> void:
 	back.focus_mode = Control.FOCUS_NONE
 	# o'ng panel: mudofaa tahlili
 	var side := PanelContainer.new()
+	_side_panel = side
 	side.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
 	side.offset_left = -330
 	side.offset_right = -8
@@ -1303,6 +1493,7 @@ func _build_hud() -> void:
 	sv.add_child(stats_box)
 	# pastki asboblar paneli
 	var tb := PanelContainer.new()
+	_tool_panel = tb
 	tb.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	tb.offset_left = 8
 	tb.offset_right = -8
