@@ -37,7 +37,8 @@ const NAMES1 := {"nayzachi": "Nayzachilar", "qilichboz": "Qilichbozlar", "kamonc
 
 var army_id := -1
 var prov_id := ""
-var castle_country := ""      # qal'a egasi - qal'a uslubi shunga qarab (kreml, ritsar qal'asi, ...)
+var castle_country := ""
+var ladders: Array = []         # narvon/arqonlar: {node, spot, out, along, rope, alive, reg}      # qal'a egasi - qal'a uslubi shunga qarab (kreml, ritsar qal'asi, ...)
 var player_attacking := true
 var finished := false
 var player_won := false
@@ -1310,7 +1311,9 @@ func _hit(e: Dictionary, dmg: float) -> void:
 		return
 	e["alive"] = false
 	(e["disc"] as Node3D).visible = false
-	if e.get("layer", "ground") == "wall" or e.get("state", "") == "climbing":
+	if e.get("state", "") == "climbing":
+		_fall(e)
+	elif e.get("layer", "ground") == "wall":
 		var nd: Node3D = e["node"]
 		var tw := nd.create_tween()
 		tw.tween_property(nd, "position:y", h_at(nd.position.x, nd.position.z), 0.6)
@@ -1355,19 +1358,10 @@ func _shoot(f: Dictionary, e: Dictionary) -> void:
 			"flat": true, "dmg": st["bullet"], "chance": st["chance"]})
 		return
 	var dur := from.distance_to(to) / 48.0
-	if f["kind"] == "kamonchi" and not f.get("cmd", false) and is_inside_tree():
+	if f["kind"] == "kamonchi" and not f.get("cmd", false):
 		# kamonchi avval o'qni oladi, torni tortadi - o'q animatsiyadagi "qo'yib yuborish" paytida (1.2 s) uchadi
 		a.visible = false
-		var fi: int = f["i"]
-		get_tree().create_timer(1.18).timeout.connect(func():
-			if not is_instance_valid(a):
-				return
-			if not figs[fi]["alive"]:
-				a.queue_free()
-				return
-			var fr: Vector3 = figs[fi]["pos"] + Vector3(0, 1.5, 0)
-			a.visible = true
-			arrows.append({"node": a, "from": fr, "to": to, "t": 0.0, "dur": fr.distance_to(to) / 48.0, "target": e["i"]}))
+		arrows.append({"node": a, "from": from, "to": to, "t": 0.0, "dur": dur, "target": e["i"], "wait": 1.18, "shooter": f["i"]})
 		return
 	arrows.append({"node": a, "from": from, "to": to, "t": 0.0, "dur": dur, "target": e["i"]})
 
@@ -1423,6 +1417,19 @@ func _cannon_shot(f: Dictionary, to: Vector3, seg: int) -> void:
 
 func _update_arrows(dt: float) -> void:
 	for ar in arrows.duplicate():
+		if ar.get("wait", 0.0) > 0.0:
+			# kamonchi hali torni tortyapti
+			ar["wait"] -= dt
+			if ar["wait"] <= 0.0:
+				var sh: Dictionary = figs[ar["shooter"]]
+				if not sh["alive"]:
+					arrows.erase(ar)
+					(ar["node"] as Node3D).queue_free()
+					continue
+				ar["from"] = sh["pos"] + Vector3(0, 1.5, 0)
+				ar["dur"] = (ar["from"] as Vector3).distance_to(ar["to"]) / 48.0
+				(ar["node"] as Node3D).visible = true
+			continue
 		ar["t"] += dt
 		var k: float = ar["t"] / ar["dur"]
 		var a: Vector3 = ar["from"]
@@ -2351,7 +2358,11 @@ func _siege_fig(f: Dictionary, r: Dictionary, st: Dictionary, dt: float, re: boo
 		return true
 	if r["order"] == "climb" and f["side"] == att_side and _outside(f["pos"], -0.5):
 		# devor tagiga borib, narvon/arqondan navbat bilan chiqish
-		var spots: Array = r["climb_spots"]
+		var spots: Array = _alive_spots(r)
+		if spots.is_empty():
+			# hamma narvon yiqitildi - devor tagida qalqon ko'tarib kutadi / hujumga o'tadi
+			r["order"] = "attack"
+			return false
 		var my: Vector3 = spots[r["figs"].find(f["i"]) % spots.size()]
 		var foot: Vector3 = my + _outward(_wall_point(my)) * 1.3
 		if Vector2(foot.x - f["pos"].x, foot.z - f["pos"].z).length() > 1.0:
@@ -2367,6 +2378,8 @@ func _siege_fig(f: Dictionary, r: Dictionary, st: Dictionary, dt: float, re: boo
 			f["climb_t"] = 0.0
 			f["climb_dur"] = 4.5 if r["kind"] == "nayzachi" else 3.2
 			f["climb_base"] = Vector3(foot.x, h_at(foot.x, foot.z), foot.z)
+			f["climb_spot"] = my
+			_raise_ladder(r, my)
 			var w2 := _wall_point(my)
 			f["climb_top"] = Vector3(w2.x, h_at(w2.x, w2.z) + 7.1, w2.z)
 			node.rotation.y = atan2(-(w2.z - foot.z), w2.x - foot.x)
@@ -2417,6 +2430,82 @@ func _player_task() -> String:
 		if c.get("task", "") != "":
 			return c["task"]
 	return ""
+
+
+func _alive_spots(r: Dictionary) -> Array:
+	var out: Array = []
+	for sp in r.get("climb_spots", []):
+		for L in ladders:
+			if L["reg"] == r["id"] and L["alive"] and (L["spot"] as Vector3).distance_to(sp) < 0.1:
+				out.append(sp)
+				break
+	return out
+
+
+func _raise_ladder(r: Dictionary, sp: Vector3) -> void:
+	for L in ladders:
+		if L["reg"] == r["id"] and L["alive"] and not L["raised"] and (L["spot"] as Vector3).distance_to(sp) < 0.1:
+			L["raised"] = true
+			var nd: Node3D = L["node"]
+			nd.visible = true
+			if L["rope"]:
+				var s0: Vector3 = nd.scale
+				nd.scale = Vector3(1, 0.05, 1)
+				nd.create_tween().tween_property(nd, "scale", s0, 0.6)
+			else:
+				# narvon yerdan ko'tarilib devorga suyaladi
+				var b1: Basis = nd.basis
+				nd.basis = Basis(L["along"], -1.3) * b1
+				nd.create_tween().tween_property(nd, "basis", b1, 0.9).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+func _fall(e: Dictionary) -> void:
+	## narvondan/arqondan yiqilish: devordan orqaga uchib, aylanib yerga tushadi
+	var nd: Node3D = e["node"]
+	var w := _wall_point(e["pos"])
+	var o := _outward(w)
+	var land: Vector3 = e["pos"] + o * _rng.randf_range(1.6, 3.0)
+	land.y = h_at(land.x, land.z)
+	e["state"] = "fallen"
+	var h0: float = nd.position.y
+	var tw := nd.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(nd, "position:x", land.x, 0.75)
+	tw.tween_property(nd, "position:z", land.z, 0.75)
+	tw.tween_property(nd, "position:y", land.y, 0.75).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	var axis := Vector3(o.z, 0, -o.x)
+	tw.tween_property(nd, "basis", nd.basis * Basis(nd.basis.inverse() * axis, -1.4 if h0 - land.y > 2.0 else -0.6), 0.75)
+	_anim(e, "Hit", true)
+
+
+func _topple(li: int, why: String) -> void:
+	## narvonni itarib yiqitish (yoki devor qulaganda o'zi yiqiladi); arqon uziladi. Ustidagilar yiqilib tushadi
+	var L: Dictionary = ladders[li]
+	if not L["alive"]:
+		return
+	L["alive"] = false
+	var nd: Node3D = L["node"]
+	if L["rope"]:
+		var tw0 := nd.create_tween()
+		tw0.tween_property(nd, "position:y", h_at(nd.position.x, nd.position.z) + 0.1, 0.5)
+		tw0.parallel().tween_property(nd, "scale", Vector3(1, 0.05, 1), 0.5)
+	else:
+		var sgn := 1.0
+		var tw := nd.create_tween()
+		var b0: Basis = nd.basis
+		var axis: Vector3 = L["along"]
+		# avval biroz tik turadi (itarilgan), keyin tashqariga yiqiladi
+		tw.tween_property(nd, "basis", Basis(axis, 0.12 * sgn) * b0, 0.35)
+		tw.tween_property(nd, "basis", Basis(axis, -1.35 * sgn) * b0, 0.9).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	for f in figs:
+		if f["alive"] and f.get("state", "") == "climbing" and f.has("climb_spot") and (f["climb_spot"] as Vector3).distance_to(L["spot"]) < 0.1:
+			f["hp"] = 0.0
+			f["alive"] = false
+			(f["disc"] as Node3D).visible = false
+			_fall(f)
+			get_tree().create_timer(0.7).timeout.connect(func(): _anim(f, "Death1", true))
+	if tip_label:
+		tip_label.text = why
 
 
 func _wall_top(p: Vector3) -> Vector3:
@@ -2513,6 +2602,25 @@ func _wall_melee(f: Dictionary, r: Dictionary, st: Dictionary, dt: float) -> boo
 		elif f["anim"] != "Attack":
 			_anim(f, "Block")
 		return true
+	# yaqinda narvon/arqon bo'lsa - 2 soniyada itarib yiqitadi (arqonni kesadi)
+	for li in ladders.size():
+		var L: Dictionary = ladders[li]
+		if not L["alive"] or not L.get("raised", true):
+			continue
+		var top := _wall_top(L["spot"])
+		if Vector2(top.x - f["pos"].x, top.z - f["pos"].z).length() < 3.5:
+			if Vector2(top.x - f["pos"].x, top.z - f["pos"].z).length() > 0.9:
+				_wall_walk(f, top, st["speed"], dt)
+				_anim(f, "Run")
+				return true
+			_face(f, top + L["out"] * 3.0)
+			f["push_t"] = f.get("push_t", 0.0) + dt
+			if f["anim"] != "Attack":
+				_anim(f, "Attack", true)
+			if f["push_t"] > 3.5:
+				f["push_t"] = 0.0
+				_topple(li, "Himoyachilar arqonni kesib tashladi!" if L["rope"] else "Himoyachilar narvonni itarib yiqitdi!")
+			return true
 	# dushman yo'q - o'z joyiga qaytib, tashqariga qarab turadi
 	var post: Vector3 = f.get("post", f["pos"])
 	if Vector2(post.x - f["pos"].x, post.z - f["pos"].z).length() > 0.4:
@@ -2559,6 +2667,8 @@ func _order_climb(r: Dictionary, gp: Vector3) -> void:
 			world.add_child(lad)
 			lad.position = Vector3(foot.x, gy, foot.z)
 			lad.basis = Basis.looking_at(-out, Vector3.UP) * Basis(Vector3.RIGHT, -0.17)
+			lad.visible = false       # askarlar devor tagiga yetib kelganda ko'tariladi
+			ladders.append({"node": lad, "spot": p, "out": out, "along": along, "rope": false, "alive": true, "reg": r["id"], "raised": false})
 		else:
 			var rope := MeshInstance3D.new()
 			var cm := CylinderMesh.new()
@@ -2571,6 +2681,8 @@ func _order_climb(r: Dictionary, gp: Vector3) -> void:
 			rope.material_override = rmat
 			world.add_child(rope)
 			rope.position = Vector3(p.x + out.x * 0.6, gy + 3.7, p.z + out.z * 0.6)
+			rope.visible = false
+			ladders.append({"node": rope, "spot": p, "out": out, "along": along, "rope": true, "alive": true, "reg": r["id"], "raised": false})
 	r["order"] = "climb"
 	r["climb_spots"] = spots
 	tip_label.text = "%s %s bilan devorga chiqmoqda!" % [NAMES[r["kind"]], "narvonlar" if r["kind"] == "nayzachi" else "ilmoqli arqonlar"]
@@ -2849,6 +2961,14 @@ func _update_stones(dt: float) -> void:
 
 
 func _breach(sg: Dictionary) -> void:
+	# qulagan devorga suyalgan narvonlar ham yiqiladi
+	for li in ladders.size():
+		if ladders[li]["alive"] and (ladders[li]["spot"] as Vector3).distance_to(sg["center"]) < 6.0:
+			_topple(li, "Devor quladi - narvon ham yiqildi!")
+	_breach_inner(sg)
+
+
+func _breach_inner(sg: Dictionary) -> void:
 	## devor bo'lagi / darvoza qulaydi: modellar yerga cho'kadi, o'rnida xarsang uyumi
 	sg["hp"] = 0.0
 	for n in sg["nodes"]:
