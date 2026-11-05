@@ -1618,6 +1618,11 @@ func _show_army() -> void:
 		"Mashq kuniga +1.5%, oziq ko'proq ketadi." if data.get("task", "dam") == "mashq" else ("Saf mashqi kuniga +0.6%." if data.get("task", "dam") == "saf" else "Mashqsiz asta pasayadi.")]
 	_army_sum.text = "Jami: %d askar (kuch %d).  Maosh: %d oltin/kun, oziq: %.0f/kun" % [CastleEco.army_total(p),
 		int(CastleEco.army_power(p)), int(g["pay"]), _food_per_day()]
+	if float(data.get("hunger", 0.0)) > 0.0:
+		_army_sum.text += "\nOCH! Oziq yo'q - ruh va jang kuchi %d%%." % int(CastleEco.hunger_penalty(data) * 100.0)
+		_army_sum.add_theme_color_override("font_color", UIKit.BAD)
+	else:
+		_army_sum.add_theme_color_override("font_color", UIKit.INFO)
 	for k in _army_cards:
 		var u: Dictionary = CastleEco.units()[k]
 		var c: Dictionary = _army_cards[k]

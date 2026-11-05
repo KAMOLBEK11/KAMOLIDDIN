@@ -75,17 +75,38 @@ static func castle_style(country: String) -> String:
 	return "arab"      # Afrika, Hindiston: paxsa/tosh cho'l qal'asi
 
 
+static func building_style(country: String) -> String:
+	## binolar uslubi (zamondan qat'i nazar xalq madaniyati): isl, rus, yevropa, xitoy, arab
+	if not Game.countries.has(country):
+		return "isl"
+	var cu: String = Game.countries[country].get("culture", "")
+	if cu == "rus":
+		return "rus"
+	if cu == "xitoy" or country in EAST_ASIA:
+		return "xitoy" if country != "YUA" else "isl"
+	if cu in ["fransuz", "italyan", "yunon", "yevropa", "ingliz"] or country in EUROPE or country == "GEO":
+		return "yevropa"
+	if cu == "arab" or country in ["ARA", "EGY", "MOR", "OMA"]:
+		return "arab"
+	if is_muslim(country):
+		return "isl"
+	return "arab"
+
+
 static func castle_file(country: String, part: String) -> String:
-	## qal'a qismi (wall/tower/gate/keep) yoki bino modelining yo'li
-	var st := castle_style(country)
-	if part in ["wall", "tower", "gate", "keep"] and st != "isl":
+	## qal'a qismi (wall/tower/gate/keep) yoki bino modelining yo'li - davlat madaniyatiga qarab
+	var st := castle_style(country) if part in ["wall", "tower", "gate", "keep"] else building_style(country)
+	if part == "moat":
+		return "res://models/castle/moat.glb"
+	if part == "mosque":
+		return "res://models/castle_isl/mosque.glb"
+	if st != "isl":
 		var p := "res://models/castle_%s/%s.glb" % [st, part]
 		if ResourceLoader.exists(p):
 			return p
-	if st in ["isl", "arab"] or not ResourceLoader.exists("res://models/castle/%s.glb" % part):
-		var q := "res://models/castle_isl/%s.glb" % part
-		if ResourceLoader.exists(q):
-			return q
+	var q := "res://models/castle_isl/%s.glb" % part
+	if ResourceLoader.exists(q) and (st == "isl" or part in ["wall", "tower", "gate", "keep"]):
+		return q
 	return "res://models/castle/%s.glb" % part
 
 

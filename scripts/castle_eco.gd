@@ -65,6 +65,18 @@ static func castle(p: Dictionary) -> Dictionary:
 const TASKS := {"dam": "Dam olish", "mashq": "Jang mashqi", "saf": "Saf mashqi", "devor": "Devorni qo'riqlash"}
 
 
+static func hunger_penalty(c: Dictionary) -> float:
+	## 1.0 - to'q; ochlikda 0.5 gacha tushadi (jang kuchi koeffitsienti)
+	return 1.0 - 0.5 * float(c.get("hunger", 0.0))
+
+
+static func worst_hunger() -> float:
+	var h := 0.0
+	for id in Game.player_provinces():
+		h = maxf(h, float(Game.provinces[id].get("castle", {}).get("hunger", 0.0)))
+	return h
+
+
 static func drill_of(p: Dictionary) -> float:
 	return float(castle(p).get("drill", 0.0))
 
@@ -228,11 +240,13 @@ static func daily(p: Dictionary) -> void:
 	Game.goods["oziq"] = have("oziq") - eat
 	if have("oziq") < 0.0:
 		Game.goods["oziq"] = 0.0
-		# ochlik: askarlarning bir qismi qochib ketadi
-		for k in a:
-			var lost := int(ceil(float(a[k]) * 0.05))
-			a[k] = maxi(0, int(a[k]) - lost)
-		Game.message.emit("%s: OZIQ TUGADI! Askarlar qochmoqda - bug'doy maydoni quring." % p["name"], "bad")
+		# ochlik: askarlar qochib ketmaydi, lekin kuchsizlanadi (ruhi va jang kuchi pasayadi)
+		var was: float = float(c.get("hunger", 0.0))
+		c["hunger"] = minf(1.0, was + 0.1)
+		if was < 0.05 or int(c["hunger"] * 10.0) % 3 == 0:
+			Game.message.emit("%s: OZIQ TUGADI! Askarlar och - ruhi va jang kuchi %d%% ga tushdi. Bug'doy maydoni quring yoki oziq sotib oling." % [p["name"], int(100.0 - hunger_penalty(c) * 100.0)], "bad")
+	else:
+		c["hunger"] = maxf(0.0, float(c.get("hunger", 0.0)) - 0.2)
 	sync(p)
 
 
@@ -257,9 +271,28 @@ static func sync(p: Dictionary) -> void:
 	var cur: float = p["units"].get("soldier", 0.0)
 	var last: float = float(c.get("mirror", -1.0))
 	if last >= 0.0 and cur < last - 0.5 and last > 0.0:
+		# jangda/urushga jo'natilganda kamayish - har turdan mutanosib, lekin yaxlitlashda askar "yo'qolmasin"
+		# (oldin floor() har turdan 1 tadan askar o'g'irlardi). Eng katta qoldiq usuli bilan taqsimlanadi.
 		var ratio := clampf(cur / last, 0.0, 1.0)
-		for k in a:
-			a[k] = int(floor(float(a[k]) * ratio))
+		var keys: Array = a.keys()
+		var target := 0.0
+		for k in keys:
+			target += float(a[k]) * ratio * float(EQ.get(k, 1.0))
+		var fl := {}
+		var rem: Array = []
+		var got := 0.0
+		for k in keys:
+			var x := float(a[k]) * ratio
+			fl[k] = int(floor(x))
+			got += float(fl[k]) * float(EQ.get(k, 1.0))
+			rem.append([x - floor(x), k])
+		rem.sort_custom(func(u, v): return u[0] > v[0])
+		for r in rem:
+			if got + float(EQ.get(r[1], 1.0)) <= target + 0.5:
+				fl[r[1]] = int(fl[r[1]]) + 1
+				got += float(EQ.get(r[1], 1.0))
+		for k in keys:
+			a[k] = fl[k]
 	elif last >= 0.0 and cur > last + 0.5:
 		var base_k := "sarboz" if a.has("sarboz") else "qilichboz"
 		a[base_k] = int(a.get(base_k, 0)) + int(cur - last)

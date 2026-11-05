@@ -250,7 +250,7 @@ func _spawn_side(side: int, eq: float, ratio: Dictionary) -> void:
 			var m := mini(n, REG_SIZE)
 			n -= m
 			var reg := {"id": regs.size(), "side": side, "kind": k, "figs": [], "anchor": Vector3.ZERO, "face": 0.0,
-				"target": -1, "morale": 100.0, "routed": false, "order": "hold"}
+				"target": -1, "morale": 100.0 - (50.0 * CastleEco.worst_hunger() if side == 0 and Game.era < 4 else 0.0), "routed": false, "order": "hold"}
 			var lab := Label3D.new()
 			lab.fixed_size = true
 			lab.pixel_size = 0.0011
@@ -289,6 +289,7 @@ func _make_fig(reg: Dictionary) -> void:
 		"alive": true, "pos": Vector3.ZERO, "cd": _rng.randf() * 1.0, "target": -1, "anim": "", "escaped": false}
 	if reg["side"] == 0 and Game.era < 4:
 		f["hp"] *= 1.0 + CastleEco.best_drill() / 200.0      # mashq qilgan askar chidamliroq
+		f["hp"] *= 1.0 - 0.35 * CastleEco.worst_hunger()      # och askar tez yengiladi
 	f["i"] = figs.size()
 	figs.append(f)
 	reg["figs"].append(f["i"])

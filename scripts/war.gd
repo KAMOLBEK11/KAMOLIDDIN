@@ -465,6 +465,7 @@ func _fight(a: Dictionary) -> void:
 			dmg_b *= 1.2
 			dmg_g *= 0.85
 		dmg_b *= 1.0 + float(cc.get("drill", 0.0)) / 250.0
+		dmg_b *= CastleEco.hunger_penalty(cc)
 	_take_losses(a, dmg_b)
 	# avval mahalliy mudofaa, keyin garnizon
 	var from_militia := minf(p["militia"], dmg_g)
