@@ -662,6 +662,15 @@ func _toggle_fire() -> void:
 var form_btns := {}
 
 
+func _reload_anim(f: Dictionary) -> String:
+	## fitilli/kapsulli miltiq - og'zidan porox va shompol bilan (5 s); nareznoy (orqasidan ochiladigan) - patron bilan (2 s)
+	if int(f.get("gun", 0)) >= 2:
+		var ap := Unit3D.anim(f["node"])
+		if ap and ap.has_animation("Reload2"):
+			return "Reload2"
+	return "Reload"
+
+
 func _set_form(fm: String) -> void:
 	if sel < 0:
 		tip_label.text = "Avval bo'linmani tanlang (sichqoncha bilan bosing)."
@@ -1278,13 +1287,16 @@ func _simulate(dt: float) -> void:
 				_face(f, e["pos"])
 				if r.get("form", "") == "volley" and not st.has("cannon"):
 					# o'q yomg'iri / zalp: butun bo'linma qo'mondon buyrug'i bilan birga otadi
-					if r.get("volley_t", 0.0) > 0.0:
-						if f["anim"] != "Attack" and f["anim"] != "Fire":
+					if r.get("volley_t", 0.0) > 0.0 or (st.has("bullet") and f["cd"] > 0.3):
+						if st.has("bullet") and f["cd"] > 1.0 and f["cd"] < float(f.get("shot_t", st["shot"])) - 0.9:
+							_anim(f, _reload_anim(f))        # zalpdan keyin har biri o'zi o'qlaydi
+						elif f["anim"] != "Attack" and f["anim"] != "Fire":
 							_anim(f, "Aim" if st.has("bullet") else "Block")
 						continue
 					f["cd"] = 0.0
 				if f["cd"] <= 0.0:
-					f["cd"] = st["shot"] * _rng.randf_range(0.85, 1.2)
+					f["cd"] = st["shot"] * _rng.randf_range(0.85, 1.2) * (0.42 if st.has("bullet") and int(f.get("gun", 0)) >= 2 else 1.0)
+					f["shot_t"] = f["cd"]
 					if st.has("cannon"):
 						_cannon_shot(f, e["pos"], -1)
 					else:
@@ -1292,8 +1304,8 @@ func _simulate(dt: float) -> void:
 					_anim(f, st.get("fire", "Attack"), true)
 				elif st.has("bullet"):
 					# o'q uzgandan keyin: porox, o'q, shompol - qayta o'qlash; tayyor bo'lsa nishonga oladi
-					if f["cd"] < st["shot"] - 0.9:
-						_anim(f, "Reload" if f["cd"] > 1.0 else "Aim")
+					if f["cd"] < float(f.get("shot_t", st["shot"])) - 0.9:
+						_anim(f, _reload_anim(f) if f["cd"] > 1.0 else "Aim")
 				elif not st.has("cannon") and f["anim"] != "Attack":
 					_anim(f, "Block")
 				continue
@@ -1650,6 +1662,18 @@ func _anim(f: Dictionary, a: String, restart := false) -> void:
 		return
 	f["anim"] = a
 	var node: Node3D = f["node"]
+	if node.has_meta("cannon") and node.has_meta("crew"):
+		# to'p (jamoasi bilan): to'pning o'zida animatsiya yo'q, jamoa harakat qiladi
+		if a.begins_with("Death"):
+			var tw1 := node.create_tween()
+			tw1.tween_property(node, "rotation:x", 0.6, 0.6)
+			BattleFX.explosion(world, node.global_position, false)
+			Unit3D.crew_play(node, "Death1", "", true)
+		elif a in ["Run", "Walk"]:
+			Unit3D.crew_play(node, "Walk")
+		elif a == "Idle":
+			Unit3D.crew_play(node, "Idle")
+		return
 	var ap := Unit3D.anim(node)
 	if ap == null:
 		if a.begins_with("Death") and node.has_meta("cannon"):

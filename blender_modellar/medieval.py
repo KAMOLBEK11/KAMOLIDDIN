@@ -1022,6 +1022,20 @@ def build_soldier(faction, kind):
         apply_pose(merge(RL, {'IKR': 1.0}), f_ + 8)
         apply_pose(READY, f_ + 18)
         apply_pose(AIMR, 120)
+        # orqasidan o'qlanadigan miltiq (Snider/Berdan, 1866+): miltiqni bel balandligiga tushiradi, o'ng qo'l bilan
+        # zatvorni ochadi, xaltadan patron olib joylaydi, yopadi va yana yelkaga qo'yadi (~2 s)
+        PORT = {'Rifle': (0, -12, 25), 'RifleLoc': (0.06, 0.02, -0.28), 'Chest': (0, 5, 0), 'Head': (0, 22, 0)}
+        AT_LOCK = {'UpperArm.R': (-60, 45, 75), 'ForeArm.R': (0, -75, 0), 'Hand.R': (0, 0, 0), 'IKR': 0.0}
+        new_action('Reload2')
+        apply_pose(merge(AIMR, {'IKR': 1.0}), 1)
+        apply_pose(merge(PORT, {'IKR': 1.0}), 6)
+        apply_pose(merge(PORT, AT_LOCK), 10)                                                   # zatvor dastasiga
+        apply_pose(merge(PORT, AT_LOCK, {'Hand.R': (45, 0, 0), 'ForeArm.R': (0, -8, 0)}), 14)   # ochish
+        apply_pose(merge(PORT, {'UpperArm.R': (-15, 45, 45), 'ForeArm.R': (0, -90, 0), 'IKR': 0.0}), 21)   # belbog'dagi xaltadan patron
+        apply_pose(merge(PORT, AT_LOCK, {'ForeArm.R': (0, 4, 0)}), 28)                         # patronni joylash
+        apply_pose(merge(PORT, AT_LOCK, {'Hand.R': (-30, 0, 0)}), 33)                          # yopish
+        apply_pose(merge(PORT, {'IKR': 1.0}), 38)
+        apply_pose(merge(AIMR, {'IKR': 1.0}), 46)
         new_action('Kneel_Fire')
         KN = {'Thigh.L': (0, -85, 10), 'Shin.L': (0, 85, 0), 'Thigh.R': (0, -20, -10), 'Shin.R': (0, 110, 0), 'Foot.R': (0, -50, 0)}
         apply_pose(merge(READY, KN), 1, (0, 0, -0.45))
@@ -1096,7 +1110,7 @@ def build_soldier(faction, kind):
                               export_animations=True, export_animation_mode='ACTIONS', export_force_sampling=True,
                               export_apply=False)
     if PREVIEW:
-        preview(rig, name, ['Idle', 'Walk', 'Run', 'Look', 'Attack', 'Block', 'Death1', 'Ride'] + (['Aim', 'Fire', 'Reload', 'Kneel_Fire', 'Attack2'] if RIFLE else []))
+        preview(rig, name, ['Idle', 'Walk', 'Run', 'Look', 'Attack', 'Block', 'Death1', 'Ride'] + (['Aim', 'Fire', 'Reload', 'Reload2', 'Kneel_Fire', 'Attack2'] if RIFLE else []))
     return rig
 
 
@@ -1124,7 +1138,7 @@ def preview(rig, name, acts):
                 sc.render.filepath = os.path.join(OUT, 'prev_%s_shoot%02d.png' % (name, fr_))
                 bpy.ops.render.render(write_still=True)
             continue
-        fr = {'Attack': 13 if 'kamonchi' not in name else 14, 'Walk': 9, 'Run': 5, 'Look': 26, 'Death1': 30, 'Block': 1, 'Fire': 3, 'Reload': 64, 'Kneel_Fire': 14, 'Attack2': 13}.get(act, 1)
+        fr = {'Attack': 13 if 'kamonchi' not in name else 14, 'Walk': 9, 'Run': 5, 'Look': 26, 'Death1': 30, 'Block': 1, 'Fire': 3, 'Reload': 64, 'Kneel_Fire': 14, 'Attack2': 13, 'Reload2': 21}.get(act, 1)
         sc.frame_set(fr)
         a = math.radians(-55 if 'kamonchi' not in name else -100)
         t = Vector((0, 0, 0.3)) if act.startswith('Death') else Vector((0, 0, 0.95))
