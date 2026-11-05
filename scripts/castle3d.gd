@@ -1517,6 +1517,8 @@ const TASK_TIPS := {"dam": "askarlar hovlida dam oladi",
 var _task_btns := {}
 var _drill_bar: ProgressBar
 var _drill_lbl: Label
+var _gear_lbl: Label
+var _gear_btn: Button
 var _task_mode := ""
 var _drill_t := 0.0
 var _beat := 0
@@ -1566,6 +1568,21 @@ func _build_army_cards() -> void:
 	army_box.add_child(_drill_bar)
 	_drill_lbl = UIKit.label("", 11, UIKit.DIM, true)
 	army_box.add_child(_drill_lbl)
+	# temirchi: zirh / miltiq yaxshilash
+	var gr := UIKit.row(army_box, 6)
+	_gear_lbl = UIKit.label("", 13, Color("#f3d58a"), true)
+	gr.add_child(_gear_lbl)
+	_gear_btn = UIKit.button(gr, "Yasash", "", func():
+		var e := CastleEco.upgrade_gear(_p())
+		if e != "":
+			_msg(e, true)
+		else:
+			for nd in _all_figs():
+				Unit3D.equip(nd, CastleEco.gear(_p()))
+			_army_cards.clear()
+			_msg("Temirchilar yangi %s tayyorladi" % ("miltiqlarni" if Game.era == 2 else "zirhlarni"))
+		_show_army())
+	_gear_btn.focus_mode = Control.FOCUS_NONE
 	var fac := Unit3D.faction_for(_p()["country"])
 	var col := Color(Game.countries[_p()["country"]]["color"]) if Game.countries.has(_p()["country"]) else Color("#2f7d4a")
 	for k in CastleEco.units():
@@ -1578,6 +1595,9 @@ func _build_army_cards() -> void:
 		pc.add_child(h)
 		var view := ModelPreview.unit_view(fac, k, col, Vector2(92, 112))
 		view.tooltip_text = "%s - sichqonchani olib keling" % u["name"]
+		var vm = view.get("model")
+		if vm is Node3D:
+			Unit3D.equip(vm, CastleEco.gear(_p()))
 		h.add_child(view)
 		var v := VBoxContainer.new()
 		v.add_theme_constant_override("separation", 2)
@@ -1612,6 +1632,18 @@ func _show_army() -> void:
 	var g := CastleEco.gold(p)
 	for t in _task_btns:
 		(_task_btns[t] as Button).set_pressed_no_signal(data.get("task", "dam") == t)
+	var gl := CastleEco.gear(_p())
+	var defs := CastleEco.gear_defs()
+	var cur_name: String = defs[gl]["name"] if defs.has(gl) else ("Oddiy kiyim" if Game.era == 1 else "Fitilli miltiq")
+	if defs.has(gl + 1):
+		_gear_lbl.text = "Temirchi: %s -> %s (%s)" % [cur_name, defs[gl + 1]["name"], CastleEco.cost_text(defs[gl + 1]["cost"])]
+		var why := "Avval temirchi quring" if CastleEco.count(_p(), "smithy") == 0 else CastleEco.can_pay(defs[gl + 1]["cost"])
+		_gear_btn.disabled = why != ""
+		_gear_btn.tooltip_text = why if why != "" else defs[gl + 1]["info"]
+		_gear_btn.visible = true
+	else:
+		_gear_lbl.text = "Temirchi: %s (eng yaxshisi)" % cur_name
+		_gear_btn.visible = false
 	var dr := float(data.get("drill", 0.0))
 	_drill_bar.value = dr
 	_drill_lbl.text = "Tayyorgarlik: %d%%  (jangda askarlar %d%% chidamliroq). %s" % [int(dr), int(dr / 2.0),
@@ -1758,6 +1790,7 @@ func _refresh_army(force := false) -> void:
 			if f == null:
 				break
 			army_root.add_child(f)
+			Unit3D.equip(f, CastleEco.gear(_p()))
 			f.position = _keep() if _initial else _door(k)
 			f.set_meta("new", not _initial)
 			arr.append(f)

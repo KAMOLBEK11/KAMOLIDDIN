@@ -218,6 +218,12 @@ static func _alias_anims(ap: AnimationPlayer, kind: String) -> void:
 
 static func cannon(team := Color("#2f7d4a")) -> Node3D:
 	## 2-zamon to'pi: yog'och lafet, ikki g'ildirak, bronza stvol. Stvol (Barrel) +X ga qaragan.
+	var sc := _scene("res://models/siege/top.glb")
+	if sc:
+		var mo: Node3D = sc.instantiate()
+		recolor(mo, team)
+		mo.set_meta("cannon", true)
+		return mo
 	var root := Node3D.new()
 	var wood := StandardMaterial3D.new()
 	wood.albedo_color = Color("#5a3b22")
@@ -296,7 +302,126 @@ static func cannon(team := Color("#2f7d4a")) -> Node3D:
 	return root
 
 
-static func horse(team := Color("#2f7d4a")) -> Node3D:
+## ---- zirh (temirchida yasaladi): 1 - charm, 2 - temir (1-zamon). Har qanday skeletga (Chest/UpperArm/Hips) kiydiriladi
+static func _mat(c: Color, metal := 0.0, rough := 0.8) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = c
+	m.metallic = metal
+	m.roughness = rough
+	return m
+
+
+static func _bone(sk: Skeleton3D, names: Array) -> int:
+	for nm in names:
+		var i := sk.find_bone(nm)
+		if i >= 0:
+			return i
+	return -1
+
+
+static func _attach(sk: Skeleton3D, bi: int, mesh: Mesh, m: Material, xf: Transform3D) -> void:
+	var ba := BoneAttachment3D.new()
+	ba.bone_idx = bi
+	ba.set_meta("armor_piece", true)
+	sk.add_child(ba)
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = m
+	ba.add_child(mi)
+	mi.transform = sk.get_bone_global_rest(bi).affine_inverse() * xf
+
+
+static func equip(n: Node3D, tier: int) -> void:
+	if tier <= 0 or n == null or Game.era >= 2:
+		return
+	var rd := rider_of(n)
+	var tgt: Node3D = rd if rd != null else n
+	var sk := _skeleton(tgt)
+	if sk == null or int(sk.get_meta("armor", 0)) == tier:
+		return
+	for old in sk.get_children():
+		if old is BoneAttachment3D and old.has_meta("armor_piece"):
+			old.queue_free()
+	sk.set_meta("armor", tier)
+	var ch := _bone(sk, ["Chest"])
+	var ul := _bone(sk, ["UpperArm.L", "UpperArm_L"])
+	var ur := _bone(sk, ["UpperArm.R", "UpperArm_R"])
+	var nk := _bone(sk, ["Neck"])
+	var hp := _bone(sk, ["Hips"])
+	if ch < 0 or ul < 0 or ur < 0 or nk < 0 or hp < 0:
+		return
+	var pl := sk.get_bone_global_rest(ul).origin
+	var pr := sk.get_bone_global_rest(ur).origin
+	var pn := sk.get_bone_global_rest(nk).origin
+	var ph := sk.get_bone_global_rest(hp).origin
+	var pc := sk.get_bone_global_rest(ch).origin
+	var xa := (pl - pr).normalized()
+	var ya := (pn - ph).normalized()
+	var za := xa.cross(ya).normalized()
+	var w := pl.distance_to(pr)
+	var bas := Basis(xa, ya, za)
+	var main := _mat(Color("#6b4a2e"), 0.0, 0.85) if tier == 1 else _mat(Color("#a8adb3"), 0.8, 0.35)
+	var band := _mat(Color("#4a3220"), 0.0, 0.9) if tier == 1 else _mat(Color("#c9a03a"), 0.85, 0.3)
+	# ko'krak zirhi (qavat-qavat plastinkalar)
+	var hgt := pn.distance_to(ph) * 0.62
+	var cen := (pc + pn) * 0.5 - ya * hgt * 0.18
+	var bx := BoxMesh.new()
+	bx.size = Vector3(w * 0.78, hgt, w * 0.5)
+	_attach(sk, ch, bx, main, Transform3D(bas, cen))
+	for k in 3:
+		var bb := BoxMesh.new()
+		bb.size = Vector3(w * 0.8, hgt * 0.07, w * 0.52)
+		_attach(sk, ch, bb, band, Transform3D(bas, cen + ya * hgt * (-0.36 + k * 0.3)))
+	# yelkaliklar
+	for pair in [[ul, pl, 1.0], [ur, pr, -1.0]]:
+		var sm := SphereMesh.new()
+		sm.radius = w * 0.17
+		sm.height = w * 0.24
+		sm.is_hemisphere = true
+		_attach(sk, pair[0], sm, main, Transform3D(bas, pair[1] + xa * pair[2] * w * 0.06 + ya * w * 0.02))
+	if tier >= 2:
+		# temir halqali etak (kolchuga)
+		var cm := CylinderMesh.new()
+		cm.top_radius = w * 0.42
+		cm.bottom_radius = w * 0.52
+		cm.height = hgt * 0.45
+		_attach(sk, hp, cm, _mat(Color("#8a8f96"), 0.7, 0.45), Transform3D(bas, ph - ya * hgt * 0.15))
+
+
+## ---- ot yopinchig'i: har xalq va zamonga o'z rangi
+const CAPARISON := {"temur": ["#1f4e8c", "#c9a03a"], "osiyo": ["#1f4e8c", "#c9a03a"], "arab": ["#e8e2d0", "#2f6b4a"], "arabi": ["#e8e2d0", "#2f6b4a"],
+	"rus": ["#9a2a24", "#c9a03a"], "xitoy": ["#c9a03a", "#9a2a22"], "yevropa": ["", "#f0ece0"], "italiya": ["", "#f0ece0"],
+	"ozbek": ["#8a2a3a", "#c9a03a"], "rus2": ["#1e2a4a", "#b03030"], "ingliz": ["#1e2340", "#b0242a"], "yevropa2": ["#2a3a6a", "#c9a03a"],
+	"usmonli": ["#9a2a24", "#e8d8a0"], "xitoy2": ["#c9a03a", "#2a3a7a"]}
+
+
+static func caparison(h: Node3D, faction: String, team: Color) -> void:
+	var sk := _skeleton(h)
+	if sk == null or sk.find_bone("Spine") < 0 or not CAPARISON.has(faction):
+		return
+	var cols: Array = CAPARISON[faction]
+	var main := _mat(team if cols[0] == "" else Color(cols[0]), 0.0, 0.9)
+	var trim := _mat(Color(cols[1]), 0.3 if cols[1] == "#c9a03a" else 0.0, 0.6)
+	var sp := sk.find_bone("Spine")
+	var full: bool = faction in ["temur", "osiyo", "arab", "arabi", "rus", "xitoy", "yevropa", "italiya"]     # 1400: uzun yopinchiq
+	var z0 := -0.72 if full else -0.38
+	var z1 := 0.62 if full else 0.28
+	var ytop := 1.6
+	var ybot := 0.95 if full else 1.18
+	# ikki yon panel va ustki qism (egarning ostida)
+	for s in [-1.0, 1.0]:
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.03, ytop - ybot, z1 - z0)
+		_attach(sk, sp, bm, main, Transform3D(Basis(), Vector3(s * 0.33, (ytop + ybot) * 0.5 - 0.05, (z0 + z1) * 0.5)))
+		var tb := BoxMesh.new()
+		tb.size = Vector3(0.035, 0.08, z1 - z0)
+		_attach(sk, sp, tb, trim, Transform3D(Basis(), Vector3(s * 0.335, ybot + 0.04, (z0 + z1) * 0.5)))
+	var top := BoxMesh.new()
+	top.size = Vector3(0.68, 0.03, z1 - z0)
+	_attach(sk, sp, top, main, Transform3D(Basis(), Vector3(0, ytop - 0.02, (z0 + z1) * 0.5)))
+
+
+static func horse(team := Color("#2f7d4a"), faction := "") -> Node3D:
 	## Yangi ot (ot.glb, Gemini): +Z ga qaragan, "Rider_Mount" suyagi bor. Bo'lmasa eski horse.glb.
 	var n: Node3D
 	var sc := _scene("res://models/era1/ot.glb")
@@ -328,6 +453,8 @@ static func horse(team := Color("#2f7d4a")) -> Node3D:
 static func cavalry(faction: String, kind: String, team := Color("#2f7d4a")) -> Node3D:
 	## Ot + chavandoz: chavandoz ot "Root" suyagiga bog'lanadi, ot bilan birga tebranadi.
 	var h := horse(team)
+	if h:
+		caparison(h, faction, team)
 	var r := soldier(faction if faction in BLENDER_FACTIONS else "osiyo", kind, team)     # otda o'tirish animatsiyasi faqat Blender modellarida bor
 	if h == null or r == null:
 		return h if h else r

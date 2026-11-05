@@ -65,6 +65,45 @@ static func castle(p: Dictionary) -> Dictionary:
 const TASKS := {"dam": "Dam olish", "mashq": "Jang mashqi", "saf": "Saf mashqi", "devor": "Devorni qo'riqlash"}
 
 
+## temirchi yaxshilanishlari: 1-zamonda zirh, 2-zamonda miltiq
+const GEAR1 := {1: {"name": "Charm zirh", "cost": {"oltin": 300, "tosh": 0, "yogoch": 80}, "info": "askarlar charm sovut va yelkalik kiyadi: +20% chidamlilik, o'qdan kamroq yaralanadi"},
+	2: {"name": "Temir zirh", "cost": {"oltin": 700, "tosh": 200, "yogoch": 0}, "info": "po'lat plastinkali sovut va kolchuga etak: +40% chidamlilik, o'q deyarli o'tmaydi"}}
+const GEAR2 := {1: {"name": "Kapsulli miltiq", "cost": {"oltin": 500, "tosh": 0, "yogoch": 60}, "info": "chaqmoqli o'rniga kapsul: tez otadi, kamroq o'q bermaydi (+15% aniqlik)"},
+	2: {"name": "Nareznoy miltiq", "cost": {"oltin": 1100, "tosh": 120, "yogoch": 0}, "info": "o'yiqli stvol: uzoqqa va aniq otadi (+30% aniqlik)"}}
+
+
+static func gear_defs() -> Dictionary:
+	return GEAR2 if Game.era == 2 else GEAR1
+
+
+static func gear(p: Dictionary) -> int:
+	return int(castle(p).get("armor", 0))
+
+
+static func best_gear() -> int:
+	var g := 0
+	for id in Game.player_provinces():
+		g = maxi(g, gear(Game.provinces[id]))
+	return g
+
+
+static func upgrade_gear(p: Dictionary) -> String:
+	var c := castle(p)
+	var nx := int(c.get("armor", 0)) + 1
+	if not gear_defs().has(nx):
+		return "Eng yaxshisi allaqachon bor"
+	if count(p, "smithy") == 0:
+		return "Avval temirchi quring"
+	var cost: Dictionary = gear_defs()[nx]["cost"]
+	var miss := can_pay(cost)
+	if miss != "":
+		return "Yetmaydi: " + miss
+	pay(cost)
+	c["armor"] = nx
+	Game.message.emit("%s: temirchilar %s tayyorladi - %s." % [p["name"], gear_defs()[nx]["name"].to_lower(), gear_defs()[nx]["info"]], "good")
+	return ""
+
+
 static func hunger_penalty(c: Dictionary) -> float:
 	## 1.0 - to'q; ochlikda 0.5 gacha tushadi (jang kuchi koeffitsienti)
 	return 1.0 - 0.5 * float(c.get("hunger", 0.0))

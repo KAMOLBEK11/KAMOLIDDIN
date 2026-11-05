@@ -271,6 +271,9 @@ func _make_fig(reg: Dictionary) -> void:
 	var k: String = reg["kind"]
 	var col: Color = colors[reg["side"]]
 	var node: Node3D = Unit3D.cavalry(fac[reg["side"]], "otliq", col) if k == "otliq" else Unit3D.soldier(fac[reg["side"]], k, col)
+	if node and Game.era == 1:
+		var tier := CastleEco.best_gear() if reg["side"] == 0 else (clampi(int(spec.get("lvl", 1)) - 2, 0, 2) if siege and def_side == 1 else 0)
+		Unit3D.equip(node, tier)
 	if node == null:
 		return
 	world.add_child(node)
@@ -291,6 +294,11 @@ func _make_fig(reg: Dictionary) -> void:
 	if reg["side"] == 0 and Game.era < 4:
 		f["hp"] *= 1.0 + CastleEco.best_drill() / 200.0      # mashq qilgan askar chidamliroq
 		f["hp"] *= 1.0 - 0.35 * CastleEco.worst_hunger()      # och askar tez yengiladi
+		if Game.era == 1:
+			f["hp"] *= 1.0 + 0.2 * CastleEco.best_gear()          # zirh
+			f["armor"] = CastleEco.best_gear()
+		else:
+			f["gun"] = CastleEco.best_gear()
 	f["i"] = figs.size()
 	figs.append(f)
 	reg["figs"].append(f["i"])
@@ -1355,7 +1363,7 @@ func _shoot(f: Dictionary, e: Dictionary) -> void:
 		var muzzle: Vector3 = from + (to - from).normalized() * 1.3
 		_smoke(muzzle)
 		arrows.append({"node": a, "from": muzzle, "to": to, "t": 0.0, "dur": from.distance_to(to) / 220.0, "target": e["i"],
-			"flat": true, "dmg": st["bullet"], "chance": st["chance"]})
+			"flat": true, "dmg": st["bullet"], "chance": st["chance"], "shooter_gun": f.get("gun", 0)})
 		return
 	var dur := from.distance_to(to) / 48.0
 	if f["kind"] == "kamonchi" and not f.get("cmd", false):
@@ -1452,6 +1460,10 @@ func _update_arrows(dt: float) -> void:
 				# qalqonli piyodaga o'q kamroq o'tadi
 				if e["kind"] in ["nayzachi", "qilichboz"] and not ar.has("dmg"):
 					cover *= 0.55
+				if not ar.has("dmg"):
+					cover *= 1.0 - 0.22 * float(e.get("armor", 0))      # zirhdan o'q o'tmaydi
+				if ar.has("shooter_gun"):
+					cover *= 1.0 + 0.15 * float(ar["shooter_gun"])
 				if e["alive"] and _rng.randf() < float(ar.get("chance", 0.36)) * cover:
 					_hit(e, float(ar.get("dmg", 0.336)) * (0.6 if e["kind"] == "otliq" else 1.0))
 			# yerga sanchilgan o'q bir oz turadi
@@ -2717,6 +2729,13 @@ func _engine_model(t: String) -> Node3D:
 		var cn := Unit3D.cannon(colors[att_side])
 		cn.scale = Vector3.ONE * 1.3
 		return cn
+	# Blender modellari: qarshi yukli manjaniq va teri bilan yopilgan taran
+	var mp := "res://models/siege/%s.glb" % ("taran" if t == "taran" else "manjaniq")
+	if ResourceLoader.exists(mp):
+		var mo: Node3D = load(mp).instantiate()
+		FX.pbr(mo)
+		Unit3D.recolor(mo, colors[att_side])
+		return mo
 	var root := Node3D.new()
 	var wood := _eng_mat
 	var dark := StandardMaterial3D.new()
@@ -2911,8 +2930,14 @@ func _update_engines(dt: float) -> void:
 				var arm: Node3D = node.get_node_or_null("Arm")
 				if arm:
 					var tw3 := arm.create_tween()
-					tw3.tween_property(arm, "rotation:z", deg_to_rad(80), 0.35)
-					tw3.tween_property(arm, "rotation:z", deg_to_rad(-35), 2.5)
+					if node.get_node_or_null("Body") != null:
+						# yuk tushadi - sopqon yelkasi orqadan tepaga, oldinga siltanadi; keyin askarlar qayta tortadi
+						tw3.tween_property(arm, "rotation:z", deg_to_rad(-115), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+						tw3.tween_property(arm, "rotation:z", deg_to_rad(-95), 0.25)
+						tw3.tween_property(arm, "rotation:z", deg_to_rad(35), 3.0)
+					else:
+						tw3.tween_property(arm, "rotation:z", deg_to_rad(80), 0.35)
+						tw3.tween_property(arm, "rotation:z", deg_to_rad(-35), 2.5)
 				var stone := MeshInstance3D.new()
 				var sm := SphereMesh.new()
 				sm.radius = 0.45
