@@ -519,6 +519,8 @@ func _capture(a: Dictionary, id: String) -> void:
 	_merge_into(a, p)
 	_boom(id, 6, true)
 	Game.message.emit("G'ALABA! %s bosib olindi. Aholi norozi - ish o'rinlari yarating." % p["name"], "good")
+	if Game.era < 4:
+		_take_captives(p, old)
 	if old != Game.REBEL:
 		var left := 0
 		for pid in Game.province_order:
@@ -527,6 +529,20 @@ func _capture(a: Dictionary, id: String) -> void:
 		if left == 0:
 			wars.erase(old)
 			Game.message.emit("%s to'liq bosib olindi! Urush tugadi." % country_name(old), "good")
+
+
+func _take_captives(p: Dictionary, old: String) -> void:
+	## bosib olingan joyning asir askarlari xizmatga o'tadi: ular o'z xalqi kiyimida, o'z qal'asida qoladi
+	## (masalan Rossiyani bossangiz - rus askarlari, rus uslubidagi qal'ada)
+	CastleEco.sync(p)
+	var c := CastleEco.castle(p)
+	var n := clampi(int(float(p["population"]) / 12000.0), 10, 50)
+	var mix: Dictionary = {"sarboz": 0.6, "nayzachi": 0.4} if Game.era == 2 else {"nayzachi": 0.4, "qilichboz": 0.3, "kamonchi": 0.3}
+	for k in mix:
+		c["army"][k] = int(c["army"].get(k, 0)) + int(round(n * float(mix[k])))
+	CastleEco.sync(p)
+	var who := country_name(p["country"]) if Game.countries.has(p["country"]) else country_name(old)
+	Game.message.emit("%s: %d asir askar (%s) sizga xizmat qilishga rozi bo'ldi. Ular o'z qal'asida - u yerda shu xalq askarlarini yollash va shu uslubda qurish mumkin." % [p["name"], n, who], "good")
 
 
 func _nearest_own(from_id: String, prefer: String) -> String:

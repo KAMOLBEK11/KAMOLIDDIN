@@ -250,7 +250,7 @@ func _spawn_side(side: int, eq: float, ratio: Dictionary) -> void:
 		while n > 0:
 			var m := mini(n, REG_SIZE)
 			n -= m
-			var reg := {"id": regs.size(), "side": side, "kind": k, "figs": [], "anchor": Vector3.ZERO, "face": 0.0,
+			var reg := {"id": regs.size(), "side": side, "kind": k, "figs": [], "anchor": Vector3.ZERO, "face": 0.0, "fac": _pick_fac(side),
 				"target": -1, "morale": 100.0 - (50.0 * CastleEco.worst_hunger() if side == 0 and Game.era < 4 else 0.0), "routed": false, "order": "hold"}
 			var lab := Label3D.new()
 			lab.fixed_size = true
@@ -267,10 +267,41 @@ func _spawn_side(side: int, eq: float, ratio: Dictionary) -> void:
 				_make_fig(reg)
 
 
+var _fac_pool: Array = []
+
+
+func _pick_fac(side: int) -> String:
+	## o'yinchi qo'shini turli xalqlardan bo'lishi mumkin (bosib olingan joylardan yollangan askarlar)
+	if side != 0 or Game.era >= 4:
+		return fac[side]
+	if _fac_pool.is_empty():
+		var w := {}
+		for id in Game.player_provinces():
+			var p: Dictionary = Game.provinces[id]
+			var n := CastleEco.army_total(p)
+			if n > 0:
+				var f := Unit3D.faction_for(p["country"])
+				w[f] = int(w.get(f, 0)) + n
+		var tot := 0
+		for f in w:
+			tot += int(w[f])
+		if tot == 0:
+			_fac_pool = [fac[0]]
+		else:
+			for f in w:
+				for i in maxi(1, int(round(10.0 * float(w[f]) / float(tot)))):
+					_fac_pool.append(f)
+			_fac_pool.shuffle()
+			_fac_pool.sort_custom(func(a, b): return a == fac[0] and b != fac[0])
+	var r: String = _fac_pool[regs.size() % _fac_pool.size()]
+	return r
+
+
 func _make_fig(reg: Dictionary) -> void:
 	var k: String = reg["kind"]
 	var col: Color = colors[reg["side"]]
-	var node: Node3D = Unit3D.cavalry(fac[reg["side"]], "otliq", col) if k == "otliq" else Unit3D.soldier(fac[reg["side"]], k, col)
+	var rf: String = reg.get("fac", fac[reg["side"]])
+	var node: Node3D = Unit3D.cavalry(rf, "otliq", col) if k == "otliq" else Unit3D.soldier(rf, k, col)
 	if node and Game.era == 1:
 		var tier := CastleEco.best_gear() if reg["side"] == 0 else (clampi(int(spec.get("lvl", 1)) - 2, 0, 2) if siege and def_side == 1 else 0)
 		Unit3D.equip(node, tier)
