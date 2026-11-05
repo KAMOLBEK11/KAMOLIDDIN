@@ -108,12 +108,33 @@ def build_elephant(style):
             if style == 'hind':
                 parts.append((cyl('Anklet', 0.31, 0.12, (fx, sy, 0.45), trim, axis='Z', verts=16), '%sLegD.%s' % (fr, side)))
     parts.append((tube('TailM', (-1.45, 0, 2.5), (-1.65, 0, 1.55), 0.06, 0.03, skin, 8), 'Tail'))
-    # yopinchiq (ikki yon) va zirh
-    for s in (-1, 1):
-        cap = box('Cloth', (2.2, 0.06, 1.3), (-0.15, s * 0.96, 2.25), cloth)
-        parts.append((cap, 'Body'))
-        parts.append((box('ClothTrim', (2.25, 0.07, 0.14), (-0.15, s * 0.97, 1.63), trim), 'Body'))
-        parts.append((box('ClothTrim2', (2.25, 0.07, 0.1), (-0.15, s * 0.97, 2.88), trim), 'Body'))
+    # yopinchiq: belni o'rab, ikki yonga osilib tushadigan yumshoq mato (pastki cheti to'lqinsimon), hoshiyasi bilan
+    def blanket_rows(x0, x1, rad, zbot, nx=18, na=22):
+        rows = []
+        cy, cz = 0.0, 2.2
+        for i in range(nx + 1):
+            u = i / nx
+            x = x0 + (x1 - x0) * u
+            row = []
+            for j in range(na + 1):
+                v = j / na * 2 - 1                      # -1 (o'ng pastki chet) .. 1 (chap pastki chet)
+                a = v * math.radians(118)
+                if abs(a) <= math.radians(90):
+                    y, z = math.sin(a) * rad * 1.0, cz + math.cos(a) * rad * 0.98
+                else:                                   # yon tomonda tik osilgan qism
+                    k = (abs(a) - math.radians(90)) / math.radians(28)
+                    y = math.copysign(rad * (1.0 + 0.04 * k), a)
+                    z = cz - k * (cz - zbot)
+                    z += (0.05 * math.sin(u * math.pi * 7) - 0.08 * abs(u * 2 - 1) ** 4) * k   # burmalar
+                row.append((x, y, z))
+            rows.append(row)
+        return rows
+    parts.append((sheet('Cloth', blanket_rows(-1.3, 0.95, 1.0, 1.6), cloth, 0.03), 'Body'))
+    hem = blanket_rows(-1.31, 0.96, 1.012, 1.6)
+    for side in (0, -1):
+        parts.append((sweep('ClothTrim', [r[side] for r in hem], 0.035, trim, 8), 'Body'))
+    parts.append((sweep('ClothTrim2', [(-1.31 + 2.27 * i / 18, math.sin(math.radians(60)) * 1.012, 2.2 + math.cos(math.radians(60)) * 0.99) for i in range(19)], 0.03, trim, 8), 'Body'))
+    parts.append((sweep('ClothTrim3', [(-1.31 + 2.27 * i / 18, -math.sin(math.radians(60)) * 1.012, 2.2 + math.cos(math.radians(60)) * 0.99) for i in range(19)], 0.03, trim, 8), 'Body'))
     if style == 'hind':
         # bosh zirhi (po'lat plastina) va tishlarga taqilgan tig'lar
         parts.append((ell('HeadPlate', 0.5, (1.9, 0, 2.75), iron, (0.5, 0.9, 1.0)), 'Head'))
@@ -121,14 +142,14 @@ def build_elephant(style):
             parts.append((tube('TuskBlade', (2.6, s * 0.3, 1.77), (2.95, s * 0.32, 1.7), 0.03, 0.005, iron, 6), 'Head'))
     # havda (minora): yog'och sandiq, panjarali to'siq, soyabon
     hz = 3.1
-    parts.append((box('HBase', (1.6, 1.4, 0.15), (-0.1, 0, hz), wood), 'Howdah'))
+    parts.append((rbox('HBase', (1.6, 1.4, 0.15), (-0.1, 0, hz), wood, 0.05), 'Howdah'))
     for s in (-1, 1):
-        parts.append((box('HSide', (1.6, 0.08, 0.55), (-0.1, s * 0.68, hz + 0.32), wood), 'Howdah'))
-        parts.append((box('HEnd', (0.08, 1.4, 0.55), (-0.1 + s * 0.78, 0, hz + 0.32), wood), 'Howdah'))
+        parts.append((rbox('HSide', (1.6, 0.08, 0.55), (-0.1, s * 0.68, hz + 0.32), wood, 0.035), 'Howdah'))
+        parts.append((rbox('HEnd', (0.08, 1.4, 0.55), (-0.1 + s * 0.78, 0, hz + 0.32), wood, 0.035), 'Howdah'))
+        parts.append((sweep('HRail', [(-0.9, s * 0.68, hz + 0.61), (0.7, s * 0.68, hz + 0.61)], 0.045, trim, 10), 'Howdah'))
         if style == 'afrika':
             for k in range(3):
-                o = cyl('HShield', 0.22, 0.04, (-0.6 + k * 0.5, s * 0.74, hz + 0.3), team, axis='Y', verts=12)
-                o.scale = (0.75, 1, 1.3)
+                o = cyl('HShield', 0.22, 0.04, (-0.6 + k * 0.5, s * 0.74, hz + 0.3), team, axis='Y', verts=24)
                 parts.append((o, 'Howdah'))
     if style == 'hind':
         for a in (-1, 1):
@@ -137,7 +158,7 @@ def build_elephant(style):
         parts.append((ell('Canopy', 0.95, (-0.1, 0, hz + 2.35), cloth, (1.0, 0.9, 0.3)), 'Howdah'))
         parts.append((cyl('CanopyFin', 0.04, 0.4, (-0.1, 0, hz + 2.75), trim, axis='Z', verts=6), 'Howdah'))
     parts.append((cyl('Pole', 0.03, 1.6, (-0.75, 0.55, hz + 0.9), wood, axis='Z', verts=6), 'Howdah'))
-    parts.append((box('Flag', (0.5, 0.03, 0.34), (-0.5, 0.55, hz + 1.55), team), 'Howdah'))
+    parts.append((sheet('Flag', [[(-0.72 + 0.48 * i / 8, 0.55 + 0.04 * math.sin(i * 0.9), hz + 1.38 + 0.34 * j / 3) for j in range(4)] for i in range(9)], team, 0.015), 'Howdah'))
     # bog'lash: qismni suyakka bog'lab qo'yish (rest holatida)
     for ob, bone in parts:
         bpy.context.view_layer.update()
@@ -217,26 +238,38 @@ def build_chariot():
     wood = mat('Wood', '#6e4a2c', 0.85)
     red = mat('TeamColor', '#a8282a', 0.7)
     body = []
-    # savat (oldi baland, orqasi ochiq), pol, shoti (dyshlo), bo'yinturuq
-    body.append(box('Floor', (1.0, 1.3, 0.08), (0, 0, 0.75), wood))
-    pts = []
-    for a in range(9):
-        t = a / 8 * math.pi
-        pts.append((0.45 * math.sin(t) + 0.0, -0.65 * math.cos(t), 0.79))
-        pts.append((0.45 * math.sin(t) + 0.0, -0.65 * math.cos(t), 1.6))
-    for i in range(8):
-        a0 = pts[2 * i]; a1 = pts[2 * i + 2]
-        body.append(hull_points('Rail%d' % i, [a0, pts[2 * i + 1], a1, pts[2 * i + 3],
-                                                (a0[0] - 0.04, a0[1], a0[2]), (a1[0] - 0.04, a1[1], a1[2])], bronze if i % 2 else red))
-    body.append(cyl('Axle', 0.05, 1.8, (0, 0, 0.62), wood, axis='Y', verts=8))
-    body.append(tube('Pole', (0.4, 0, 0.7), (2.6, 0, 1.05), 0.05, 0.05, wood, 8))
-    body.append(cyl('Yoke', 0.05, 1.5, (2.55, 0, 1.08), wood, axis='Y', verts=8))
+    # savat: yumaloq pol, oldi baland egilgan silliq devor (orqasi ochiq), ustki tutqich halqasi, bezak tasmasi
+    body.append(rbox('Floor', (1.0, 1.3, 0.08), (0, 0, 0.75), wood, 0.035))
+    na = 24
+    rows = []
+    for j in range(5):
+        z = 0.79 + (1.55 - 0.79) * j / 4
+        row = []
+        for a in range(na + 1):
+            t = a / na * math.pi
+            flare = 1.0 + 0.06 * (j / 4)
+            hgt = 1.0 - 0.28 * (math.cos(t) ** 2) * (j / 4)          # yonlari pastroq (oldi baland)
+            zz = 0.79 + (z - 0.79) * hgt
+            row.append((0.45 * math.sin(t) * flare, -0.65 * math.cos(t) * flare, zz))
+        rows.append(row)
+    body.append(sheet('Shell', rows, red, 0.03))
+    top = rows[-1]
+    body.append(sweep('RailTop', [(p[0] + 0.0, p[1], p[2] + 0.02) for p in top], 0.035, bronze, 10))
+    midr = rows[2]
+    body.append(sweep('RailMid', [(p[0] * 1.03, p[1] * 1.03, p[2]) for p in midr], 0.018, bronze, 8))
+    for k in (4, 8, 12, 16, 20):
+        body.append(sweep('Rib', [(r[k][0] * 1.035, r[k][1] * 1.035, r[k][2]) for r in rows], 0.016, bronze, 8))
+    body.append(sweep('Axle', [(0, -1.0, 0.62), (0, 1.0, 0.62)], 0.05, wood, 10))
+    body.append(sweep('Pole', [(0.3, 0, 0.7), (1.2, 0, 0.78), (2.0, 0, 0.95), (2.6, 0, 1.08)], 0.05, wood, 10))
+    body.append(sweep('Yoke', [(2.55, -0.75, 1.0), (2.55, -0.4, 1.1), (2.55, 0, 1.12), (2.55, 0.4, 1.1), (2.55, 0.75, 1.0)], 0.05, wood, 10))
     b = join('Body', body, origin=(0, 0, 0))
     wheels = []
     for nm, y in (('WheelL', 0.85), ('WheelR', -0.85)):
-        w = [cyl('Rim', 0.62, 0.07, (0, y, 0.62), bronze, axis='Y', verts=24), cyl('Hub', 0.1, 0.18, (0, y, 0.62), bronze, axis='Y', verts=10)]
+        ring = [(0.6 * math.cos(t), y, 0.62 + 0.6 * math.sin(t)) for t in [k / 32 * 2 * math.pi for k in range(32)]]
+        w = [sweep('Rim', ring, 0.045, bronze, 10, closed=True), cyl('Hub', 0.1, 0.2, (0, y, 0.62), bronze, axis='Y', verts=20)]
         for k in range(6):
-            w.append(box('Spoke', (1.18, 0.04, 0.04), (0, y, 0.62), wood, (0, k * math.pi / 6, 0)))
+            a = k * math.pi / 3
+            w.append(sweep('Spoke', [(0.08 * math.cos(a), y, 0.62 + 0.08 * math.sin(a)), (0.57 * math.cos(a), y, 0.62 + 0.57 * math.sin(a))], 0.022, wood, 8))
         ob = join(nm, w, origin=(0, y, 0.62))
     for nm, loc in (('Driver', (0.15, 0.25, 0.8)), ('Warrior', (-0.15, -0.25, 0.8))):
         e = bpy.data.objects.new(nm, None)

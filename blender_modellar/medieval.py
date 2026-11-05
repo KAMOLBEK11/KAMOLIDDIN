@@ -199,22 +199,26 @@ def archery_rig(rig, Matrix, half=0.55):
     tor uchlari BowB ga, o'rtasi 'Nock' suyagiga bog'langan. Otishda Nock o'ng qo'lga ergashadi (ta'siri kalitlangan);
     o'q 'ArrowB' da (Nock bolasi, Damped Track bilan doim kamon dastasiga qaraydi), faqat o'q qo'yilganda ko'rinadi."""
     hl = rig.pose.bones['Hand.L']
-    grip = hl.tail.copy()                          # GRIP holatida kamon dastasi (armatura fazosi)
+    grip = hl.head.lerp(hl.tail, 0.55)             # GRIP holatida kaft o'rtasi - kamon dastasi shu yerdan o'tadi
     MAPL = hl.bone.matrix_local @ hl.matrix.inverted()
     bpy.context.view_layer.objects.active = rig
     bpy.ops.object.mode_set(mode='EDIT')
     eb = rig.data.edit_bones
     gb = MAPL @ grip
-    b0 = eb.new('BowB'); b0.head = gb; b0.tail = gb + Vector((0, 0.08, 0)); b0.parent = eb['Hand.L']
+    b0 = eb.new('BowB'); b0.head = gb; b0.tail = gb + Vector((0, 0.08, 0))     # ota-suyaksiz: aylanishi doim 0 (kamon tik)
     bpy.ops.object.mode_set(mode='OBJECT')
-    cr = rig.pose.bones['BowB'].constraints.new('COPY_ROTATION')
-    cr.target = rig      # armatura obyekti: kamon dunyoga nisbatan tik
+    cr = rig.pose.bones['BowB'].constraints.new('COPY_LOCATION')
+    cr.target = rig; cr.subtarget = 'Hand.L'; cr.head_tail = 0.55     # joyi - chap kaft o'rtasi
     bpy.context.view_layer.update()
     bb = rig.pose.bones['BowB']
     MAP = bb.bone.matrix_local @ bb.matrix.inverted()
-    mid = bb.head + Vector((-0.055, 0, 0))
-    t1 = bb.head + Vector((-0.06, 0, half))
-    t2 = bb.head + Vector((-0.06, 0, -half))
+    # kamon: tik (yelkalari yuqori-pastga), qorni nishonga (+X), dastasi kaft ichida, tori kamonchi tomonda.
+    # Copy Rotation tufayli BowB ning aylanishi doimiy (armatura bilan bir xil) - kamonni shu holatda qayta joylaymiz.
+    GRIPX = 0.12 * (0.8 if half > 0.6 else 1.0)   # kamon obyektida dasta markazi (uzun ingliz kamoni x bo'yicha 0.8 ga siqilgan)
+    org = bb.head - Vector((GRIPX, 0, 0))          # kamon obyektining boshlang'ich nuqtasi (armatura fazosi)
+    mid = org + Vector((-0.055, 0, 0))
+    t1 = org + Vector((-0.06, 0, half))
+    t2 = org + Vector((-0.06, 0, -half))
     m_rest = MAP @ mid
     fwd = (MAP.to_3x3() @ Vector((1, 0, 0))).normalized()
     bpy.ops.object.mode_set(mode='EDIT')
@@ -231,9 +235,10 @@ def archery_rig(rig, Matrix, half=0.55):
     # kamonni BowB ga ko'chirish (joyi o'zgarmaydi)
     bow = bpy.data.objects.get('Bow')
     if bow:
-        mw = bow.matrix_world.copy()
         bow.parent_bone = 'BowB'
-        bow.matrix_world = mw
+        bpy.context.view_layer.update()
+        bow.matrix_world = rig.matrix_world @ Matrix.Translation(org)
+        bpy.context.view_layer.update()
     smat = mat('String', '#ddd8c8', 0.9)
     parts = [_tube('StringTop', MAP @ t1, m_rest, 0.0035, ('BowB', 'Nock')),
              _tube('StringBot', MAP @ t2, m_rest, 0.0035, ('BowB', 'Nock'))]
@@ -275,7 +280,7 @@ def look_shield(look, sr, TEAM, MT, BRZ, GOLD, LT):
     if look == 'yunon':      # aspis: katta botiq bronza qalqon, o'rtasi jamoa rangida
         r = 0.44
         return [cyl('ShieldDisk', r, 0.04, (0, 0, 0), TEAM, axis='X', verts=32),
-                cyl('ShieldRim', r + 0.02, 0.05, (0.006, 0, 0), BRZ, axis='X', verts=32),
+                cyl('ShieldRim', r + 0.02, 0.05, (-0.008, 0, 0), BRZ, axis='X', verts=32),
                 sph('ShieldBoss', 0.12, (0.015, 0, 0), BRZ, (0.3, 1, 1))]
     if look == 'afrika':     # cho'zinchoq teri (buyvol) qalqon
         d = cyl('ShieldDisk', 0.3, 0.03, (0, 0, 0), LT, axis='X', verts=24)
@@ -284,7 +289,7 @@ def look_shield(look, sr, TEAM, MT, BRZ, GOLD, LT):
         st.scale = (1.0, 0.6, 9.0)
         return [d, st, sph('ShieldBoss', 0.05, (0.02, 0, 0), MT, (0.6, 1, 1))]
     if look == 'hind':       # dhal: kichik botiq po'lat qalqon, 4 oltin bo'rtma
-        sh = [cyl('ShieldDisk', 0.26, 0.03, (0, 0, 0), MT, axis='X', verts=28), cyl('ShieldRim', 0.27, 0.025, (0.004, 0, 0), GOLD, axis='X', verts=28)]
+        sh = [cyl('ShieldDisk', 0.26, 0.03, (0, 0, 0), MT, axis='X', verts=28), cyl('ShieldRim', 0.27, 0.025, (-0.008, 0, 0), GOLD, axis='X', verts=28)]
         for k in range(4):
             a = k * math.pi / 2 + math.pi / 4
             sh.append(sph('Stud', 0.025, (0.02, math.cos(a) * 0.12, math.sin(a) * 0.12), GOLD, (0.6, 1, 1), 8, 6))
@@ -810,7 +815,7 @@ def build_soldier(faction, kind):
         if kind == 'qomondon' and faction == 'ozbek':
             # po'lat dumaloq qalqon, oltin bo'rtma (kulohxud)
             sh = [cyl('ShieldDisk', 0.27, 0.03, (0, 0, 0), MT, axis='X', verts=28),
-                  cyl('ShieldRim', 0.28, 0.025, (0.004, 0, 0), GOLD, axis='X', verts=28),
+                  cyl('ShieldRim', 0.28, 0.025, (-0.008, 0, 0), GOLD, axis='X', verts=28),
                   sph('ShieldBoss', 0.075, (0.02, 0, 0), GOLD, (0.6, 1, 1))]
             for k_ in range(4):
                 a_ = k_ * math.pi / 2 + math.pi / 4
@@ -830,7 +835,7 @@ def build_soldier(faction, kind):
                 shield = join('Shield', sh, origin=(0, 0, 0))
                 weapon_parts.append((shield, 'ForeArm.L', 'shield'))
             sh = look_shield(LOOK, sr, TEAM, MT, BRZ, GOLD, LT) or [cyl('ShieldDisk', sr, 0.03, (0, 0, 0), TEAM, axis='X', verts=24),
-                  cyl('ShieldRim', sr + 0.01, 0.02, (0.005, 0, 0), MT, axis='X', verts=24),
+                  cyl('ShieldRim', sr + 0.01, 0.02, (-0.008, 0, 0), MT, axis='X', verts=24),
                   sph('ShieldBoss', 0.07, (0.02, 0, 0), MT, (0.6, 1, 1))]
             if not XI:
                 shield = join('Shield', sh, origin=(0, 0, 0))
@@ -846,7 +851,7 @@ def build_soldier(faction, kind):
         spear = join('Spear', sp, origin=(0, 0, 0))
         weapon_parts.append((spear, 'Hand.R', 'spear'))
         sh = [] if E2K else (look_shield(LOOK, 0.28, TEAM, MT, BRZ, GOLD, LT) or [cyl('ShieldDisk', 0.28, 0.03, (0, 0, 0), TEAM, axis='X', verts=24),
-              cyl('ShieldRim', 0.29, 0.02, (0.005, 0, 0), MT, axis='X', verts=24),
+              cyl('ShieldRim', 0.29, 0.02, (-0.008, 0, 0), MT, axis='X', verts=24),
               sph('ShieldBoss', 0.065, (0.02, 0, 0), MT, (0.6, 1, 1))])
         if sh:
             shield = join('Shield', sh, origin=(0, 0, 0))
@@ -991,14 +996,14 @@ def build_soldier(faction, kind):
                  'UpperArm.L': (12, -35, 0), 'ForeArm.L': (0, -75, -55)}
         WIND = {'UpperArm.R': (-25, -150, 0), 'ForeArm.R': (0, -60, 0), 'Hand.R': (0, -10, 0), 'Chest': (0, -4, 20), 'Spine': (0, 0, 10)}
         STRIKE = {'UpperArm.R': (-5, -55, 30), 'ForeArm.R': (0, -5, 0), 'Hand.R': (0, -60, 0), 'Chest': (0, 12, -25), 'Spine': (0, 6, -10)}
-        BLOCK = {'UpperArm.L': (10, -80, 0), 'ForeArm.L': (0, -70, -70), 'Chest': (0, 4, 0)}
+        BLOCK = {'UpperArm.L': (0, -32, 0), 'ForeArm.L': (0, 26, 0), 'Chest': (0, 4, 0)}     # qalqonni ko'tarib, nishonga qaratib to'sish
     elif kind == 'nayzachi':
         READY = {'UpperArm.R': (0, -15, 0), 'ForeArm.R': (0, -80, 0), 'Hand.R': (0, 0, 0),
                  'UpperArm.L': (12, -35, 0), 'ForeArm.L': (0, -75, -55)}
         # (READY ustiga qo'shiladigan farqlar) - nayza gorizontal qoladi
         WIND = {'UpperArm.R': (0, 30, 0), 'ForeArm.R': (0, -25, 0), 'Chest': (0, -4, 15)}
         STRIKE = {'UpperArm.R': (0, -45, 0), 'ForeArm.R': (0, 45, 0), 'Chest': (0, 6, -8)}
-        BLOCK = {'UpperArm.L': (10, -80, 0), 'ForeArm.L': (0, -70, -70)}
+        BLOCK = {'UpperArm.L': (0, -32, 0), 'ForeArm.L': (0, 26, 0), 'Chest': (0, 4, 0)}
     else:  # kamonchi: tanasi yonga burilgan, chap qo'l oldinga cho'zilgan
         READY = {'UpperArm.L': (0, -30, 0), 'ForeArm.L': (0, -40, 0), 'UpperArm.R': (0, -10, 0), 'ForeArm.R': (0, -30, 0)}
         GRIP = READY
@@ -1228,10 +1233,15 @@ def build_soldier(faction, kind):
             loc = rig.matrix_world @ pb.tail
             ob.matrix_world = Matrix.Translation(loc + Vector((0.55, 0, 0)))   # nayza gorizontal, oldinga (+X), uchi oldinda
         elif wk == 'shield':
-            mid = rig.matrix_world @ ((pb.head + pb.tail) / 2)
-            m = bm.to_3x3().normalized()
-            # qalqon bilakning tashqi (old) tomonida
-            ob.matrix_world = Matrix.Translation(mid + Vector((0.11 if (RUS or XI) else 0.06, 0.03 if (RUS or XI) else 0.02, 0)))
+            # markaziy dastali qalqon (umbo): musht qalqon bo'rtmasining ORQASIDA dastani ushlaydi,
+            # qalqon tekisligi nishonga qaragan; bilak va kaft to'liq qalqon orqasida qoladi (qo'l teshib chiqmaydi)
+            hand_ = rig.pose.bones.get('Hand.L')
+            hh_ = rig.matrix_world @ (hand_.head if hand_ else pb.tail)
+            ht_ = rig.matrix_world @ (hand_.tail if hand_ else pb.tail)
+            palm_ = hh_.lerp(ht_, 0.5)
+            front_ = max(hh_.x, ht_.x) + 0.05            # kaftning eng oldingi nuqtasidan oldinda
+            dep_ = 0.05 if (RUS or XI) else 0.0
+            ob.matrix_world = Matrix.Translation(Vector((front_ + dep_, palm_.y, palm_.z)))
         elif wk == 'rifle':
             # dam olish (rest) holatida joylashtirib suyakka bog'lanadi
             rig.data.pose_position = 'REST'

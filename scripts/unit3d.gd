@@ -485,17 +485,63 @@ static func caparison(h: Node3D, faction: String, team: Color) -> void:
 	var z1 := 0.62 if full else 0.28
 	var ytop := 1.6
 	var ybot := 0.95 if full else 1.18
-	# ikki yon panel va ustki qism (egarning ostida)
-	for s in [-1.0, 1.0]:
-		var bm := BoxMesh.new()
-		bm.size = Vector3(0.03, ytop - ybot, z1 - z0)
-		_attach(sk, sp, bm, main, Transform3D(Basis(), Vector3(s * 0.33, (ytop + ybot) * 0.5 - 0.05, (z0 + z1) * 0.5)))
-		var tb := BoxMesh.new()
-		tb.size = Vector3(0.035, 0.08, z1 - z0)
-		_attach(sk, sp, tb, trim, Transform3D(Basis(), Vector3(s * 0.335, ybot + 0.04, (z0 + z1) * 0.5)))
-	var top := BoxMesh.new()
-	top.size = Vector3(0.68, 0.03, z1 - z0)
-	_attach(sk, sp, top, main, Transform3D(Basis(), Vector3(0, ytop - 0.02, (z0 + z1) * 0.5)))
+	# yumshoq yopinchiq: ot beli ustidan egilib, ikki yonga osilib tushadi, pastki cheti to'lqinsimon
+	var m2: StandardMaterial3D = main.duplicate()
+	m2.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_attach(sk, sp, _drape(0.34, ytop, ybot, z0, z1, 0.0), m2, Transform3D())
+	var t2: StandardMaterial3D = trim.duplicate()
+	t2.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_attach(sk, sp, _drape(0.355, ybot + 0.1, ybot, z0 - 0.01, z1 + 0.01, 0.07, true), t2, Transform3D())
+
+
+static func _drape(hw: float, ytop: float, ybot: float, z0: float, z1: float, wave: float, band := false) -> ArrayMesh:
+	## mato: ko'ndalang kesimi ellips yoy (tepada) + ikki yonga osilgan qism; z bo'ylab cho'zilgan.
+	## band=true - faqat pastki tasma (bezak hoshiyasi)
+	var prof: Array = []      # (x, y) ko'ndalang profil
+	var arc_c := ytop - 0.16
+	if band:
+		prof = [Vector2(-hw * 1.07, ytop), Vector2(-hw * 1.1, ybot)]
+	else:
+		var n := 10
+		prof.append(Vector2(-hw * 1.1, ybot))
+		prof.append(Vector2(-hw * 1.05, (ybot + arc_c) * 0.5))
+		for i in n + 1:
+			var t := -PI / 2.0 + PI * float(i) / float(n)
+			prof.append(Vector2(hw * sin(t), arc_c + 0.16 * cos(t)))
+		prof.append(Vector2(hw * 1.05, (ybot + arc_c) * 0.5))
+		prof.append(Vector2(hw * 1.1, ybot))
+	var segs := 16
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_smooth_group(0)
+	var parts: Array = [prof] if not band else [prof, prof.map(func(v): return Vector2(-v.x, v.y))]
+	for pr in parts:
+		var rows: Array = []
+		for j in segs + 1:
+			var u := float(j) / float(segs)
+			var z := lerpf(z0, z1, u)
+			# uchlari biroz yumaloqlangan, pastki chetida to'lqin (burmalar)
+			var row: Array = []
+			for k in pr.size():
+				var v: Vector2 = pr[k]
+				var y := v.y
+				var x := v.x
+				if y < ytop - 0.2 or band:
+					var lowness := clampf((ytop - 0.2 - y) / maxf(0.01, ytop - 0.2 - ybot), 0.0, 1.0) if not band else 1.0
+					y += (0.035 * sin(u * PI * 9.0) - 0.06 * pow(absf(u * 2.0 - 1.0), 4.0)) * lowness
+					x += signf(x) * (0.012 * sin(u * PI * 9.0 + 1.2)) * lowness
+				row.append(Vector3(x, y, z))
+			rows.append(row)
+		for j in segs:
+			for k in pr.size() - 1:
+				var a: Vector3 = rows[j][k]
+				var b: Vector3 = rows[j + 1][k]
+				var c: Vector3 = rows[j + 1][k + 1]
+				var d: Vector3 = rows[j][k + 1]
+				st.add_vertex(a); st.add_vertex(b); st.add_vertex(c)
+				st.add_vertex(a); st.add_vertex(c); st.add_vertex(d)
+	st.generate_normals()
+	return st.commit()
 
 
 static func horse(team := Color("#2f7d4a"), faction := "") -> Node3D:

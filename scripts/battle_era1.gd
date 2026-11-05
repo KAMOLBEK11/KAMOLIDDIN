@@ -1655,7 +1655,9 @@ func _update_arrows(dt: float) -> void:
 					arrows.erase(ar)
 					(ar["node"] as Node3D).queue_free()
 					continue
-				ar["from"] = sh["pos"] + Vector3(0, 1.5, 0)
+				# o'q kamon dastasidan (chap qo'l, ko'krak balandligida, nishon tomonda) uchib chiqadi
+				var fwd := Vector3(ar["to"].x - sh["pos"].x, 0, ar["to"].z - sh["pos"].z).normalized()
+				ar["from"] = sh["pos"] + fwd * 0.75 + Vector3(0, 1.45, 0)
 				ar["dur"] = (ar["from"] as Vector3).distance_to(ar["to"]) / 48.0
 				(ar["node"] as Node3D).visible = true
 			continue
@@ -1663,7 +1665,9 @@ func _update_arrows(dt: float) -> void:
 		var k: float = ar["t"] / ar["dur"]
 		var a: Vector3 = ar["from"]
 		var b: Vector3 = ar["to"]
-		var arc := 0.0 if ar.get("flat", false) else a.distance_to(b) * 0.22
+		# yaqin nishonga deyarli to'g'ri (past yoy), uzoqqa - baland yoy bilan otiladi
+		var dist := a.distance_to(b)
+		var arc := 0.0 if ar.get("flat", false) else dist * clampf(0.05 + dist / 500.0, 0.06, 0.2)
 		var p := a.lerp(b, k) + Vector3(0, arc * 4.0 * k * (1.0 - k), 0)
 		var p2 := a.lerp(b, minf(1.0, k + 0.02)) + Vector3(0, arc * 4.0 * minf(1.0, k + 0.02) * (1.0 - minf(1.0, k + 0.02)), 0)
 		var node: MeshInstance3D = ar["node"]

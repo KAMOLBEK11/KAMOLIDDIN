@@ -204,3 +204,69 @@ def tracked_chassis(prefix, length, width, body, dark, n_wheels=7, wheel_r=0.38,
         for x, z, r in ((hx - 0.2, 0.55, 0.3), (-hx + 0.05, 0.6, 0.3)):
             parts.append(cyl(prefix + 'Idler', r, 0.16, (x, side * (yt + track_w / 2 + 0.05), z), body, verts=10))
     return parts
+
+
+def rbox(name, size, loc, material, r=0.03, seg=3, rot=(0, 0, 0)):
+    """qirralari yumaloqlangan quti (yumshoq ko'rinish uchun)"""
+    sx, sy, sz = size
+    bm = bmesh.new()
+    bmesh.ops.create_cube(bm, size=1.0)
+    for v in bm.verts:
+        v.co = Vector((v.co.x * sx, v.co.y * sy, v.co.z * sz))
+    r = min(r, sx * 0.45, sy * 0.45, sz * 0.45)
+    bmesh.ops.bevel(bm, geom=list(bm.edges) + list(bm.verts), offset=r, segments=seg, affect='EDGES', profile=0.5)
+    ob = _obj_from_bm(name, bm, material)
+    ob.location = loc
+    ob.rotation_euler = rot
+    return ob
+
+
+def sweep(name, pts, r, material, verts=10, closed=False):
+    """polyline bo'ylab silliq quvur (halqa, tutqich, chiziqli bezaklar uchun)"""
+    pts = [Vector(p) for p in pts]
+    n = len(pts)
+    bm = bmesh.new()
+    rings = []
+    for i, p in enumerate(pts):
+        if closed:
+            d = pts[(i + 1) % n] - pts[i - 1]
+        else:
+            d = pts[min(i + 1, n - 1)] - pts[max(i - 1, 0)]
+        d.normalize()
+        a = Vector((0, 0, 1)) if abs(d.z) < 0.9 else Vector((1, 0, 0))
+        u = d.cross(a).normalized()
+        w = d.cross(u).normalized()
+        rings.append([bm.verts.new(p + (u * math.cos(t) + w * math.sin(t)) * r)
+                      for t in [k / verts * 2 * math.pi for k in range(verts)]])
+    m = n if closed else n - 1
+    for i in range(m):
+        a_, b_ = rings[i], rings[(i + 1) % n]
+        for k in range(verts):
+            bm.faces.new((a_[k], a_[(k + 1) % verts], b_[(k + 1) % verts], b_[k]))
+    if not closed:
+        bm.faces.new(rings[0][::-1])
+        bm.faces.new(rings[-1])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    ob = _obj_from_bm(name, bm, material)
+    for f in ob.data.polygons:
+        f.use_smooth = True
+    return ob
+
+
+def sheet(name, rows, material, thick=0.025):
+    """nuqtalar to'ri (rows[i][j]) dan qalinlikka ega silliq mato/devor"""
+    bm = bmesh.new()
+    vs = [[bm.verts.new(Vector(p)) for p in row] for row in rows]
+    for i in range(len(vs) - 1):
+        for j in range(len(vs[i]) - 1):
+            bm.faces.new((vs[i][j], vs[i][j + 1], vs[i + 1][j + 1], vs[i + 1][j]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    ob = _obj_from_bm(name, bm, material)
+    for f in ob.data.polygons:
+        f.use_smooth = True
+    md = ob.modifiers.new('Solid', 'SOLIDIFY')
+    md.thickness = thick
+    md.offset = 0.0
+    bpy.context.view_layer.objects.active = ob
+    bpy.ops.object.modifier_apply(modifier='Solid')
+    return ob
