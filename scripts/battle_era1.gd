@@ -631,9 +631,55 @@ func _refresh_cmd_hud() -> void:
 	cmd_label.text = "\n".join(lines)
 
 
+## saf buyruqlari: [kalit, nom, izoh, kimga mumkin]
+const FORMS := [["", "Oddiy (Z)", "oddiy saf", ["qilichboz", "nayzachi", "kamonchi", "otliq", "sarboz", "top"]],
+	["shield", "Qalqon devori (X)", "zich saf, qalqonlar ko'tarilgan: o'q kam o'tadi, zarba 40% kam, sekin yuradi", ["qilichboz", "nayzachi"]],
+	["brace", "Nayza safi (C)", "nayzalar yerga tiralgan: otliqqa qarshi 2 barobar kuchli, joyidan qo'zg'almaydi", ["nayzachi", "sarboz"]],
+	["volley", "O'q yomg'iri / zalp (V)", "butun bo'linma buyruq bilan birga otadi", ["kamonchi", "sarboz"]],
+	["loose", "Tarqoq saf (B)", "keng yoyilgan saf: o'q va to'p kamroq tegadi", ["qilichboz", "nayzachi", "kamonchi", "sarboz", "otliq"]]]
+var form_row: HBoxContainer
+var form_btns := {}
+
+
+func _set_form(fm: String) -> void:
+	if sel < 0:
+		tip_label.text = "Avval bo'linmani tanlang (sichqoncha bilan bosing)."
+		return
+	var r: Dictionary = regs[sel]
+	for fd in FORMS:
+		if fd[0] == fm and not r["kind"] in fd[3]:
+			tip_label.text = "%s bu safda tura olmaydi." % NAMES[r["kind"]]
+			return
+	r["form"] = fm
+	r["volley_t"] = 0.0
+	if fm == "brace" or fm == "shield":
+		r["order"] = "hold"
+	var nm := ""
+	for fd in FORMS:
+		if fd[0] == fm:
+			nm = fd[1].get_slice(" (", 0)
+	tip_label.text = "%s: %s" % [NAMES[r["kind"]], nm.to_lower() if fm != "" else "oddiy saf"]
+	_refresh_form_btns()
+
+
+func _refresh_form_btns() -> void:
+	if form_row == null:
+		return
+	for fd in FORMS:
+		var b: Button = form_btns[fd[0]]
+		var ok: bool = sel >= 0 and regs[sel]["kind"] in fd[3]
+		b.disabled = not ok
+		b.add_theme_color_override("font_color", Color("#ffd166") if ok and regs[sel].get("form", "") == fd[0] else Color("#f1e4c8"))
+
+
 func _slot(r: Dictionary, idx: int) -> Vector3:
-	var cols := 7
+	var form: String = r.get("form", "")
+	var cols := 7 if form != "shield" else 9
 	var sp := 2.8 if r["kind"] == "otliq" else (4.5 if r["kind"] == "top" else 1.7)
+	if form in ["shield", "brace"]:
+		sp = 1.05          # zich saf: qalqonlar bir-biriga tegib turadi
+	elif form == "loose":
+		sp = 3.2           # tarqoq saf: o'q kamroq tegadi
 	var row := idx / cols
 	var col := idx % cols
 	var fwd := Vector3(cos(r["face"]), 0, -sin(r["face"]))
@@ -939,8 +985,9 @@ func _select(rid: int) -> void:
 	if sel >= 0:
 		for fi in regs[sel]["figs"]:
 			(figs[fi]["disc"] as MeshInstance3D).material_override = _sel_mat
-		tip_label.text = "%s tanlandi (%d). O'ng tugma: yerga - yurish, dushmanga - hujum." % [NAMES[regs[sel]["kind"]], _alive(regs[sel])]
+		tip_label.text = "%s tanlandi (%d). O'ng tugma: yerga - yurish, dushmanga - hujum. Saf: Z X C V B." % [NAMES[regs[sel]["kind"]], _alive(regs[sel])]
 	_refresh_ui()
+	_refresh_form_btns()
 
 
 func _order(gp: Vector3) -> void:
@@ -1012,6 +1059,8 @@ func _unhandled_key_input(e: InputEvent) -> void:
 			_select(-1)
 		elif k == KEY_SPACE and phase == "deploy":
 			_begin()
+		elif k in [KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B]:
+			_set_form(FORMS[[KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B].find(k)][0])
 
 
 # ================================================================ jang mantiqi
@@ -1135,6 +1184,25 @@ func _simulate(dt: float) -> void:
 						r["order"] = "attack"
 			if r["order"] == "attack" and (r["target"] < 0 or regs[r["target"]]["routed"] or _alive(regs[r["target"]]) == 0):
 				r["target"] = _ai_target(r)
+	# dushman (AI) ham saf buyruqlaridan foydalanadi: otliq yaqinlashsa nayza safi, kamonchilar zalp bilan otadi
+	if re:
+		for r in regs:
+			if r["side"] != 1 or r["routed"] or r.has("title"):
+				continue
+			if r["kind"] in ["kamonchi", "sarboz"] and r.get("form", "") == "":
+				r["form"] = "volley"
+			elif r["kind"] == "nayzachi" and not siege:
+				var cav_near := false
+				for o in regs:
+					if o["side"] == 0 and o["kind"] == "otliq" and not o["routed"] and _alive(o) > 0 and _center(o).distance_to(_center(r)) < 45.0:
+						cav_near = true
+				r["form"] = "brace" if cav_near else ""
+	# o'q yomg'iri: har bo'linmaning umumiy "oting!" taymeri
+	for r in regs:
+		if r.get("form", "") == "volley":
+			r["volley_t"] = r.get("volley_t", 0.0) - dt
+			if r["volley_t"] <= -dt * 1.5:
+				r["volley_t"] = (STAT[r["kind"]].get("shot", 2.3) + 0.8) * (1.0 if r["kind"] != "sarboz" else 0.9)
 	# qo'mondon atrofidagi bo'linmalarning ruhi tiklanib turadi
 	if re and _cmd_alive():
 		for r in regs:
@@ -1182,6 +1250,13 @@ func _simulate(dt: float) -> void:
 			var rk := _ranged(f["kind"])
 			if rk and d > 9.0 and d < st["range"] + maxf(0.0, f["pos"].y - e["pos"].y) * 2.0:
 				_face(f, e["pos"])
+				if r.get("form", "") == "volley" and not st.has("cannon"):
+					# o'q yomg'iri / zalp: butun bo'linma qo'mondon buyrug'i bilan birga otadi
+					if r.get("volley_t", 0.0) > 0.0:
+						if f["anim"] != "Attack" and f["anim"] != "Fire":
+							_anim(f, "Aim" if st.has("bullet") else "Block")
+						continue
+					f["cd"] = 0.0
 				if f["cd"] <= 0.0:
 					f["cd"] = st["shot"] * _rng.randf_range(0.85, 1.2)
 					if st.has("cannon"):
@@ -1203,7 +1278,9 @@ func _simulate(dt: float) -> void:
 			if rk and (d >= 9.0 or st.has("cannon")):
 				pass
 			elif r["order"] == "attack" or d < 6.0:
-				if d > st["reach"]:
+				if r.get("form", "") == "brace" and d > st["reach"] + 0.6:
+					pass     # nayza safi joyidan qo'zg'almaydi, dushmanni kutadi
+				elif d > st["reach"]:
 					_move(f, e["pos"], st["speed"], dt)
 					_anim(f, "Run" if f["kind"] != "otliq" else "Gallop")
 					f["charge"] = f.get("charge", 0.0) + dt
@@ -1214,6 +1291,13 @@ func _simulate(dt: float) -> void:
 						var dmg: float = st["dmg"]
 						if e["kind"] == "otliq":
 							dmg *= st["vs_cav"]
+							if r.get("form", "") == "brace":
+								dmg *= 2.2      # nayzalar yerga tiralgan - otliq o'zi nayzaga uriladi
+						var er: Dictionary = regs[e["reg"]]
+						if er.get("form", "") == "shield":
+							dmg *= 0.6          # qalqon devori
+						if er.get("form", "") == "brace" and f["kind"] == "otliq":
+							_hit(f, 0.25)       # otliq nayza safiga urilib o'zi yaralanadi
 						if f["kind"] == "otliq" and f.get("charge", 0.0) > 2.0:
 							dmg *= 2.2      # otliq zarbasi (chopib kelib urish)
 						if e["pos"].y > f["pos"].y + 2.0:
@@ -1232,11 +1316,11 @@ func _simulate(dt: float) -> void:
 		var idx: int = r["figs"].find(f["i"])
 		var slot := _slot(r, idx)
 		if Vector2(slot.x - f["pos"].x, slot.z - f["pos"].z).length() > 0.8:
-			_move(f, slot, st["speed"] * (0.6 if r["order"] == "hold" else 1.0), dt)
+			_move(f, slot, st["speed"] * (0.6 if r["order"] == "hold" else 1.0) * (0.45 if r.get("form", "") == "shield" else 1.0), dt)
 			_anim(f, "Walk" if r["order"] != "move" or f["kind"] == "otliq" else "Run")
 		else:
 			node.rotation.y = lerp_angle(node.rotation.y, r["face"], 0.1)
-			_anim(f, "Idle")
+			_anim(f, "Block" if r.get("form", "") in ["shield", "brace"] else "Idle")
 	if siege:
 		_update_engines(dt)
 	_update_stones(dt)
@@ -1493,6 +1577,11 @@ func _update_arrows(dt: float) -> void:
 					cover *= 0.55
 				if not ar.has("dmg"):
 					cover *= 1.0 - 0.22 * float(e.get("armor", 0))      # zirhdan o'q o'tmaydi
+				var ef: String = regs[e["reg"]].get("form", "")
+				if ef == "shield":
+					cover *= 0.3          # qalqonlar tepaga ko'tarilgan
+				elif ef == "loose":
+					cover *= 0.6
 				if ar.has("shooter_gun"):
 					cover *= 1.0 + 0.15 * float(ar["shooter_gun"])
 				if e["alive"] and _rng.randf() < float(ar.get("chance", 0.36)) * cover:
@@ -1699,7 +1788,7 @@ func _build_hud() -> void:
 	bot.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	bot.offset_left = 8
 	bot.offset_right = -8
-	bot.offset_top = -80
+	bot.offset_top = -116
 	bot.offset_bottom = -8
 	bot.add_theme_stylebox_override("panel", UIKit.style(Color(0.05, 0.08, 0.12, 0.6), 12, Color(0.6, 0.8, 1.0, 0.22), 10))
 	hud.add_child(bot)
@@ -1711,6 +1800,14 @@ func _build_hud() -> void:
 	UIKit.button(br, "  Hammasi hujumga!  ", "", _all_attack).focus_mode = Control.FOCUS_NONE
 	cmd_btn = UIKit.button(br, "  QO'MONDON BO'LISH (Tab)  ", "", _toggle_cmd, true)
 	cmd_btn.focus_mode = Control.FOCUS_NONE
+	# tanlangan bo'linmaga saf buyruqlari
+	form_row = UIKit.row(bv, 6)
+	form_row.add_child(UIKit.label("SAF:", 13, Color("#f3d58a")))
+	for fd in FORMS:
+		var fb := UIKit.button(form_row, fd[1], "", _set_form.bind(fd[0]))
+		fb.focus_mode = Control.FOCUS_NONE
+		fb.tooltip_text = fd[2]
+		form_btns[fd[0]] = fb
 	cmd_panel = PanelContainer.new()
 	cmd_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	cmd_panel.offset_left = -330
