@@ -950,6 +950,7 @@ func _unhandled_key_input(e: InputEvent) -> void:
 
 
 var _amb_t := 0.0
+var _bell_h := -1
 
 
 func _ambience(delta: float) -> void:
@@ -969,6 +970,26 @@ func _ambience(delta: float) -> void:
 	# temirchi bo'lsa vaqti-vaqti bilan sandon ovozi
 	if not night and CastleEco.count(_p(), "smithy") > 0 and randf() < 0.08:
 		Sfx.play("sandon", -22.0, 0.1, 2.0)
+	# bozor shovqini (kunduzi), masjid hovlisi, kechasi mash'allar chirsillashi
+	if not night and CastleEco.count(_p(), "market") > 0:
+		Sfx.loop("c_bozor", "bozor", -16.0, 3.0)
+	else:
+		Sfx.stop_loop("c_bozor", 3.0)
+	if CastleEco.count(_p(), "mosque") > 0 and not night:
+		Sfx.loop("c_masjid", "masjid", -14.0, 3.0)
+	else:
+		Sfx.stop_loop("c_masjid", 3.0)
+	if night:
+		Sfx.loop("c_olov", "olov", -24.0, 3.0)
+	else:
+		Sfx.stop_loop("c_olov", 3.0)
+	# nasroniy qal'alarda cherkov qo'ng'irog'i (ertalab, tushda, kechqurun)
+	var bst := Unit3D.building_style(_p()["country"])
+	if bst in ["rus", "yevropa", "yunon"] and Unit3D.castle_style(_p()["country"]) != "isl":
+		var hh := int(h)
+		if hh in [8, 12, 18] and _bell_h != hh:
+			_bell_h = hh
+			Sfx.play("qongiroq", -12.0, 0.02, 30.0)
 	if CastleEco.count(_p(), "stable") > 0 and randf() < 0.05:
 		Sfx.play("ot_pishqirish" if randf() < 0.8 else "ot_kishnash", -24.0, 0.1, 3.0)
 
