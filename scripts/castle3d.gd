@@ -105,11 +105,8 @@ func _p() -> Dictionary:
 
 
 func _model_file(n: String) -> String:
-	## musulmon davlatlarda O'rta Osiyo uslubidagi gumbazli binolar (models/castle_isl)
-	var isl := "res://models/castle_isl/%s.glb" % n
-	if (Unit3D.is_muslim(_p()["country"]) or not ResourceLoader.exists("res://models/castle/%s.glb" % n)) and ResourceLoader.exists(isl):
-		return isl
-	return "res://models/castle/%s.glb" % n
+	## davlat madaniyatiga xos qal'a (kreml, ritsar qal'asi, xitoy, arab, bastion) va binolar
+	return Unit3D.castle_file(_p()["country"], n)
 
 
 func _scene(n: String) -> PackedScene:
@@ -324,11 +321,14 @@ func _rebuild() -> void:
 	for t in data["towers"]:
 		var o := _inst("tower")
 		o.position = _v(t["p"])
+		var away := o.position - _keep()
+		if Unit3D.castle_style(_p()["country"]) == "bastion" and away.length() > 0.5:
+			o.rotation.y = atan2(away.x, away.z)        # bastion uchi tashqariga qaraydi
 		build_root.add_child(o)
 		# minora tepasida soqchi (1-zamonda kamonchi, 2-zamonda miltiqli sarboz): atrofni kuzatadi
 		var u := Unit3D.soldier(Unit3D.faction_for(_p()["country"]), "sarboz" if Game.era == 2 else "kamonchi", Color(Game.countries[_p()["country"]]["color"]))
 		if u:
-			u.position = o.position + Vector3(0, 11.65, 0)
+			u.position = o.position + Vector3(0, float(Unit3D.STYLE_TOP.get(Unit3D.castle_style(_p()["country"]), 11.65)), 0)
 			var base := atan2(o.position.x - _keep().x, o.position.z - _keep().z) - PI / 2.0
 			u.rotation.y = base
 			build_root.add_child(u)

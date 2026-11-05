@@ -37,6 +37,7 @@ const NAMES1 := {"nayzachi": "Nayzachilar", "qilichboz": "Qilichbozlar", "kamonc
 
 var army_id := -1
 var prov_id := ""
+var castle_country := ""      # qal'a egasi - qal'a uslubi shunga qarab (kreml, ritsar qal'asi, ...)
 var player_attacking := true
 var finished := false
 var player_won := false
@@ -182,6 +183,7 @@ func setup(aid: int) -> void:
 		if siege:
 			def_side = 0
 			att_side = 1
+	castle_country = (p["owner"] if Game.countries.has(p["owner"]) else p["country"]) if player_attacking else p["country"]
 	if siege:
 		var hx: float = spec["hx"]
 		var hz: float = spec["hz"]
@@ -2027,7 +2029,7 @@ func _build_castle() -> void:
 			var sg := {"center": Vector3(c.x, 0, c.z), "hp": hp0, "max": hp0, "gate": is_gate, "nodes": [], "ang": ang}
 			var gy := h_at(c.x, c.z)
 			if is_gate:
-				var o: Node3D = load("res://models/castle/gate.glb").instantiate()
+				var o: Node3D = load(Unit3D.castle_file(castle_country, "gate")).instantiate()
 				o.position = Vector3(c.x, gy, c.z)
 				o.rotation.y = ang
 				FX.pbr(o)
@@ -2040,7 +2042,7 @@ func _build_castle() -> void:
 				var n := int(ceil(seglen / 4.0))
 				for k in n:
 					var mc := a + dir * (t + (k + 0.5) * seglen / n)
-					var o: Node3D = load("res://models/castle/wall.glb").instantiate()
+					var o: Node3D = load(Unit3D.castle_file(castle_country, "wall")).instantiate()
 					o.position = Vector3(mc.x, h_at(mc.x, mc.z), mc.z)
 					o.rotation.y = ang
 					o.scale = Vector3(seglen / n / 4.0 * 1.01, 1, 1)
@@ -2061,12 +2063,14 @@ func _build_castle() -> void:
 	if cs.get("moat", false):
 		_build_moat()
 	for c in tpos:
-		var tw: Node3D = load("res://models/castle/tower.glb").instantiate()
+		var tw: Node3D = load(Unit3D.castle_file(castle_country, "tower")).instantiate()
 		tw.position = Vector3(c.x, h_at(c.x, c.z), c.z)
+		if Unit3D.castle_style(castle_country) == "bastion":
+			tw.rotation.y = atan2(c.x - cs["cx"], c.z - cs["cz"])
 		FX.pbr(tw)
 		Unit3D.recolor(tw, col)
 		world.add_child(tw)
-	var kp: Node3D = load("res://models/castle/keep.glb").instantiate()
+	var kp: Node3D = load(Unit3D.castle_file(castle_country, "keep")).instantiate()
 	kp.position = Vector3(cs["cx"] + 6.0, h_at(cs["cx"] + 6.0, cs["cz"]), cs["cz"])
 	kp.rotation.y = -PI / 2.0
 	kp.scale = Vector3(0.8, 0.8, 0.8)

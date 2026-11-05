@@ -45,6 +45,50 @@ static func is_muslim(country: String) -> bool:
 	return cu in ["turk", "arab"] or country in MUSLIM1
 
 
+## qal'a uslubi (madaniyat va zamonga qarab): isl (O'rta Osiyo, default), rus (kreml), yevropa, xitoy, arab, bastion (1860-70)
+const STYLE_TOP := {"isl": 11.65, "rus": 11.65, "yevropa": 11.65, "xitoy": 11.95, "arab": 11.65, "bastion": 7.1}
+const EAST_ASIA := ["JAP", "DAI", "KOR", "AVA", "AYU", "CHA", "KHM", "MAJ", "SUK", "ANN", "SIA", "QNG", "MNG", "TIB", "YUA"]
+
+
+static func castle_style(country: String) -> String:
+	if not Game.countries.has(country):
+		return "isl"
+	var cu: String = Game.countries[country].get("culture", "")
+	if Game.era == 2:
+		if cu in ["rus", "yevropa", "ingliz"]:
+			return "bastion"
+		if cu == "xitoy" or country in EAST_ASIA:
+			return "xitoy"
+		if cu in ["ozbek", "usmonli"]:
+			return "isl"
+		return "isl" if is_muslim(country) else "arab"
+	if cu == "rus":
+		return "rus"
+	if cu == "xitoy" or country in EAST_ASIA:
+		return "xitoy" if country != "YUA" else "isl"
+	if cu in ["fransuz", "italyan", "yunon"] or country in EUROPE or country == "GEO":
+		return "yevropa"
+	if cu == "arab":
+		return "arab"
+	if is_muslim(country):
+		return "isl"
+	return "arab"      # Afrika, Hindiston: paxsa/tosh cho'l qal'asi
+
+
+static func castle_file(country: String, part: String) -> String:
+	## qal'a qismi (wall/tower/gate/keep) yoki bino modelining yo'li
+	var st := castle_style(country)
+	if part in ["wall", "tower", "gate", "keep"] and st != "isl":
+		var p := "res://models/castle_%s/%s.glb" % [st, part]
+		if ResourceLoader.exists(p):
+			return p
+	if st in ["isl", "arab"] or not ResourceLoader.exists("res://models/castle/%s.glb" % part):
+		var q := "res://models/castle_isl/%s.glb" % part
+		if ResourceLoader.exists(q):
+			return q
+	return "res://models/castle/%s.glb" % part
+
+
 static func player_faction() -> String:
 	var pp: Array = Game.player_provinces()
 	return faction_for(Game.provinces[pp[0]]["country"]) if not pp.is_empty() else default_faction()
