@@ -1,0 +1,5 @@
+.godot/
+godot/
+tests/
+*.import
+versiya.txt

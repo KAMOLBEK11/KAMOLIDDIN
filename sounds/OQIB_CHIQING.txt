@@ -1,0 +1,5 @@
+AZON OVOZI
+Bu papkaga azon yozuvini "azon.mp3" (yoki "azon.ogg") nomi bilan qo'ying.
+O'yinda musulmon davlatining qal'asida masjid qurilgan bo'lsa, namoz vaqtlarida
+(Bomdod 5:00, Peshin 12:30, Asr 16:00, Shom 18:36, Xufton 20:12) azon minoradan eshitiladi.
+Fayl bo'lmasa, faqat "Azon: ... namozi vaqti" xabari chiqadi.

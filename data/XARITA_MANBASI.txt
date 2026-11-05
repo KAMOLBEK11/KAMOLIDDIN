@@ -1,0 +1,6 @@
+1-zamon (1400-yil) dunyo xaritasi chegaralari:
+  aourednik/historical-basemaps  -  https://github.com/aourednik/historical-basemaps
+  Litsenziya: GNU GPL-3.0. Chegaralar o'yin uchun o'zgartirilgan:
+  Xitoy (Min), Moskva/Tver/Ryazan, Shimoliy Italiya, Koreya ajratildi; nomlar o'zbekchaga o'girildi;
+  davlatlar shaharlar atrofida viloyatlarga bo'lindi.
+Viloyatlarning tog'liligi: three.js earth_normal_2048 (NASA Blue Marble asosida).

@@ -1,0 +1,87 @@
+GLOBAL STRATEGIYA - 5-bosqich: tadqiqot va havo kuchlari
+=======================================
+
+ISHGA TUSHIRISH (Windows)
+ENG OSON YO'L: OYINNI_BOSHLASH.bat faylini ikki marta bosing.
+
+QO'LDA:
+1. https://godotengine.org/download/windows saytidan "Godot Engine 4" (oddiy, .NET emas) yuklab oling.
+   Zip ichidagi Godot_v4.x-stable_win64.exe ni istalgan papkaga chiqaring. O'rnatish shart emas.
+2. Ushbu zip faylni ham papkaga chiqaring (masalan: Hujjatlar\GlobalStrategiya).
+3. Godot'ni oching -> "Import" tugmasi -> shu papkadagi project.godot faylini tanlang -> "Import & Edit".
+4. Birinchi ochilishda Godot fayllarni bir necha soniya tayyorlaydi. Keyin yuqori o'ng burchakdagi
+   uchburchak "Play" tugmasini (yoki F5) bosing.
+
+BOSHQARUV
+- Sichqoncha g'ildiragi: yaqinlashtirish / uzoqlashtirish
+- Sichqonchani bosib sudrash yoki W A S D / strelkalar: xaritani surish
+- Provinsiyani bosish: ma'lumot paneli
+- Probel (Space): pauza / davom
+- Yuqorida: tezlik (||, 1x, 2x, 5x), Saqlash, Yuklash
+
+NIMA BOR (1-bosqich)
+- Markaziy Osiyo, Xitoy, Mongoliya, Afg'oniston: 136 ta provinsiya
+- Boshlang'ich provinsiyani tanlash
+- 3 xil bino: Fuqarolik zavodi, Kon/neft bazasi, Harbiy zavod
+- Harbiy zavodga askar va tank buyurtma berish
+- Kunlik byudjet: soliq, sanoat, resurs sotish, xarajatlar
+- Norozilik: ish o'rni kam bo'lsa va byudjet minusga tushsa oshadi, 100% da isyon
+- Tasodifiy voqealar: neft narxi, ish tashlash, zilzila, mo'l hosil
+- Saqlash / yuklash
+
+URUSH (2-bosqich)
+- O'z provinsiyangizda qo'shin bo'lsa "Qo'shinni yuborish" tugmasini bosing, keyin xaritadan nishonni tanlang.
+  Qo'shin faqat o'z hududingiz orqali yuradi va qo'shni provinsiyaga hujum qiladi.
+- Boshqa davlat provinsiyasiga hujum qilsangiz, o'sha davlatga urush e'lon qilinadi.
+- Jang bir necha kun davom etadi: mudofaa kuchi 0 ga tushsa provinsiya sizniki bo'ladi.
+- Chet eldagi qo'shinning zaxirasi kamayadi (qo'shin ustidagi chiziq). Karvonlar avtomatik
+  jo'natiladi (har biri 60 $), lekin dushman ularni pistirmada yo'q qilishi mumkin.
+  Zaxira tugasa, qo'shin kuchi 3 barobargacha pasayadi.
+- Dushman ham vaqti-vaqti bilan sizning provinsiyalaringizga qarshi hujum qiladi.
+- Urush boshlanganidan 30 kun o'tgach sulh taklif qilish mumkin.
+- O'ng tugma yoki Esc - nishon tanlashni bekor qilish.
+
+DIPLOMATIYA (3-bosqich)
+- Yuqoridagi "Diplomatiya" tugmasi yoki chet davlat provinsiyasidagi "Diplomatiya: ..." tugmasi.
+- Munosabat (-100..100): sovg'a, savdo, ittifoq bilan oshadi; urush e'lon qilish hammaga yoqmaydi.
+- Savdo shartnomasi: har kuni qo'shimcha daromad (munosabat 0 dan yuqori bo'lsa).
+- Harbiy ittifoq (munosabat 60+): sizga hujum bo'lsa ittifoqchi yordam yuboradi.
+- Qarz olish: 10%, 60 kun. Qaytara olmasangiz DEFOLT: provinsiya berasiz yoki 120 kunlik
+  GLOBAL SANKSIYA (savdo to'xtaydi, resurslar yarim narxda, hech kim qarz bermaydi).
+- Qarz berish: 15%, 90 kun. Qaytara olmagan davlat sizga o'z provinsiyasini beradi.
+- Askar ijarasi: boshqa davlatdan askar olish yoki o'z askaringizni pulga berish (60 kun).
+- Tank sotish: pul olasiz, lekin u davlat kuchayadi.
+- Qora bozor: 3 barobar qimmat, yuk 25% ehtimol bilan talanadi.
+- Davlatlar o'zlari ham taklif yuboradi (qarz, savdo, askar so'rash, qurol sotib olish).
+  Munosabat juda yomon bo'lsa, qo'shni davlat sizga urush e'lon qilishi mumkin.
+- Askar/tank bilan bog'liq ishlar xaritada tanlangan o'z provinsiyangiz orqali bo'ladi.
+
+JANG SAHNASI (3D)
+- Jang ketayotgan provinsiyani ikki marta bosing yoki panelda "JANGNI BOSHQARISH (3D)" tugmasi.
+- 3D maydon: chapda sizning qo'shin (sariq belgili), o'ngda dushman (qizil belgili), shtab va generallar.
+- Kamera: g'ildirak - yaqinlashtirish, W A S D - surish, Q / E - aylantirish, o'rta tugma bilan sudrash.
+- Chap tugma: birlikni tanlash; sudrab to'rtburchak chizsangiz - guruh tanlanadi.
+- O'ng tugma: bo'sh joyga - yurish, dushmanga - shu nishonga hujum.
+- "Hujum!" - hamma birliklar eng yaqin dushmanga hujum qiladi. "1x/2x" - jang tezligi.
+- Tanklar uzoqqa otadi va portlash bilan atrofga zarar beradi. Askarlarning tankka zarari kam.
+- "Avtomatik" - jangni xaritadagi oddiy hisobga qaytarish. "Chekinish" - qo'shinni olib chiqish.
+- Jang natijasi (tirik qolganlar) xaritaga qaytadi; dushman tugasa provinsiya sizniki bo'ladi.
+- Zaxira kam bo'lsa, askarlaringiz kuchsizroq otadi.
+
+TADQIQOT VA HAVO KUCHLARI (5-bosqich)
+- "Fuqarolik ilmiy markazi" va "Harbiy ilmiy markaz" quring: har biri kuniga 1 ilmiy ball beradi.
+- Yuqoridagi "Tadqiqot" tugmasi: texnologiyani tanlang. Har yo'nalishda bir vaqtda bitta.
+  Fuqarolik: zavod daromadi, tez qurilish, konlar, logistika, norozilik, xalqaro bank.
+  Harbiy: kuchli askar va tanklar, aviatsiya, PVO, raketa, yadro quroli.
+- Aviatsiya ochilgach Aerodrom quring -> bombardimonchi samolyotlar.
+  Raketa va yadro raketasi harbiy zavodda ishlab chiqariladi.
+- Provinsiya panelidagi "Bombardimon" / "Raketa uchirish" -> xaritadan nishonni tanlang.
+  Samolyotlar uchib boradi, bombalaydi va qaytib keladi. Raketa bir martalik, kuchliroq.
+- Boshqa davlat ustidan uchsangiz, tranzit ruxsati kerak (Diplomatiya oynasida, 300 $).
+  Ruxsatsiz uchsangiz, ularning PVO si samolyotlaringizni urib tushirishi mumkin.
+- Yadro raketasi provinsiyani yakson qiladi, lekin butun dunyo sizga qarshi chiqadi
+  va 180 kunlik global sanksiya e'lon qilinadi.
+
+MUAMMO CHIQSA
+Godot'ning pastki qismidagi "Output" yoki "Debugger" oynasidagi qizil xato matnini
+nusxalab yoki skrinshot qilib Claude'ga yuboring.

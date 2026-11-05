@@ -1,0 +1,40 @@
+; Godot 4 loyiha fayli
+
+config_version=5
+
+[application]
+
+config/name="Global Strategiya"
+config/description="Global Strategiya: Amir Temur davri (1400) va O'rta Osiyo xonliklari (1865)"
+run/main_scene="res://scenes/menu.tscn"
+config/features=PackedStringArray("4.3", "Forward Plus")
+
+[autoload]
+
+Game="*res://scripts/game.gd"
+War="*res://scripts/war.gd"
+Diplo="*res://scripts/diplo.gd"
+Tech="*res://scripts/tech.gd"
+Politics="*res://scripts/politics.gd"
+UIFx="*res://scripts/ui_fx.gd"
+Story="*res://scripts/story.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[rendering]
+
+renderer/rendering_method="forward_plus"
+renderer/rendering_method.mobile="gl_compatibility"
+rendering_device/fallback_to_opengl3=true
+lights_and_shadows/directional_shadow/size=8192
+lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3
+anti_aliasing/quality/msaa_3d=2
+anti_aliasing/quality/screen_space_aa=1
+global_illumination/sdfgi/probe_ray_count=2
+environment/defaults/default_clear_color=Color(0.09, 0.14, 0.2, 1)
+anti_aliasing/quality/msaa_2d=1
