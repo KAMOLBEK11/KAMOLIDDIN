@@ -589,6 +589,7 @@ func _shout(k: String) -> void:
 		return
 	shout_cd[k] = SHOUTS[k]["cd"]
 	var c: Vector3 = figs[cmd]["pos"]
+	Sfx.at("urra", c, world, 4.0, 0.05, 1.0, 40.0)
 	shout_label.text = SHOUTS[k]["text"]
 	shout_label.position = c + Vector3(0, 7.0, 0)
 	shout_label.visible = true
@@ -1151,6 +1152,10 @@ func _begin() -> void:
 		return
 	phase = "fight"
 	start_btn.visible = false
+	Sfx.play("karnay", -4.0, 0.03)
+	Sfx.play("nogora", -6.0, 0.05)
+	get_tree().create_timer(0.7).timeout.connect(func(): Sfx.play("nogora", -6.0, 0.05))
+	get_tree().create_timer(1.4).timeout.connect(func(): Sfx.play("nogora", -5.0, 0.05))
 	for r in regs:
 		if r["side"] == 1:
 			r["order"] = "attack" if player_attacking == false or not _ranged(r["kind"]) else "hold"
@@ -1163,6 +1168,7 @@ func _begin() -> void:
 func _all_attack() -> void:
 	if phase == "deploy":
 		_begin()
+	Sfx.play("urra", -5.0, 0.05, 1.0)
 	for r in regs:
 		if r["side"] == 0 and not r["routed"] and not r.has("title"):
 			r["order"] = "attack"
@@ -1192,6 +1198,10 @@ func _process(delta: float) -> void:
 		cam_target = cam_target.clamp(Vector3(-40, 0, -40), Vector3(W + 40, 0, H + 40))
 		cam_yaw += yaw * 1.4 * delta
 		_apply_cam()
+	_snd_t -= delta
+	if _snd_t <= 0.0:
+		_snd_t = 0.3
+		_battle_loops()
 	if phase == "fight" and not finished:
 		var dt := minf(delta, 0.05) * sim_speed
 		_simulate(dt)
@@ -1379,6 +1389,7 @@ func _simulate(dt: float) -> void:
 						if e["kind"] == "fil" and _cav(f["kind"]):
 							dmg *= 0.6      # otlar fildan hurkadi
 						_hit(e, dmg * _rng.randf_range(0.7, 1.3))
+						_melee_snd(f, e)
 						if f["kind"] == "fil":
 							# fil oyog'i va xartumi bilan atrofdagilarni ham urib yiqitadi
 							for e2 in figs:
@@ -1505,6 +1516,102 @@ func _separate() -> void:
 					(b["node"] as Node3D).position = Vector3(b["pos"].x, h_at(b["pos"].x, b["pos"].z), b["pos"].z)
 
 
+# ================================================================ ovozlar
+
+var _snd_t := 0.0
+
+
+func _melee_snd(f: Dictionary, e: Dictionary) -> void:
+	## zarba ovozi: qurol qurolga yoki qalqonga tegsa - jarang/taqillash, tanaga tegsa - bo'g'iq zarb
+	var p: Vector3 = e["pos"] + Vector3(0, 1.2, 0)
+	var k: String = f["kind"]
+	if k == "fil":
+		Sfx.at("zarba", p, world, 2.0, 0.1, 0.1)
+		if _rng.randf() < 0.3:
+			Sfx.at("fil", f["pos"] + Vector3(0, 3, 0), world, 0.0, 0.1, 2.5, 40.0)
+		return
+	var shield: bool = Game.era < 2 and e["kind"] in ["qilichboz", "nayzachi"]
+	var r := _rng.randf()
+	if shield and r < 0.35:
+		Sfx.at("qalqon", p, world, -3.0)
+	elif (k in ["qilichboz", "otliq", "arava"] or e["kind"] == "qilichboz") and r < 0.75:
+		Sfx.at("qilich", p, world, -4.0, 0.1, 0.05)
+	else:
+		Sfx.at("zarba", p, world, -3.0)
+	if _rng.randf() < 0.12:
+		Sfx.at("ah", p, world, -6.0, 0.12, 0.25)
+
+
+func _death_snd(e: Dictionary) -> void:
+	var p: Vector3 = e["pos"] + Vector3(0, 1.0, 0)
+	if e["kind"] == "fil":
+		Sfx.at("fil", p + Vector3(0, 2, 0), world, 3.0, 0.15, 0.5, 40.0)
+		return
+	if _cav(e["kind"]) and _rng.randf() < 0.3:
+		Sfx.at("ot_kishnash", p, world, -3.0, 0.12, 0.6)
+	if _rng.randf() < 0.3:
+		Sfx.at("qichqiriq", p, world, -4.0, 0.12, 0.3)
+	get_tree().create_timer(0.5).timeout.connect(func(): Sfx.at("yiqilish", p, world, -6.0, 0.1, 0.1))
+
+
+func _battle_loops() -> void:
+	## fon ovozlari kamera yaqinidagi askarlarga qarab: piyoda qadamlari, yugurish, ot tuyoqlari, fil, arava g'ildiragi, jang shovqini
+	if finished or cam == null:
+		return
+	var c := cam_target
+	var walk := 0.0
+	var run := 0.0
+	var trot := 0.0
+	var gallop := 0.0
+	var fil := 0.0
+	var wheel := 0.0
+	var fight := 0.0
+	for f in figs:
+		if not f["alive"]:
+			continue
+		var d: float = Vector2(f["pos"].x - c.x, f["pos"].z - c.z).length()
+		if d > 140.0:
+			continue
+		var w := 1.0 / (1.0 + d / 35.0)
+		var a: String = f.get("anim", "")
+		var k: String = f["kind"]
+		if a == "Attack" or a == "Block" or a == "Hit":
+			fight += w
+		if k == "fil":
+			if a in ["Walk", "Run"]:
+				fil += w
+		elif k == "arava":
+			if a in ["Walk", "Run", "Attack"]:
+				wheel += w
+				gallop += w
+		elif _cav(k):
+			if a == "Run" or f.get("charge", 0.0) > 0.5:
+				gallop += w
+			elif a == "Walk":
+				trot += w
+		elif a == "Run":
+			run += w
+		elif a == "Walk":
+			walk += w
+	var amb := phase == "fight"
+	_snd_loop("b_walk", "qadam", walk, 2.0, -16.0)
+	_snd_loop("b_run", "yugurish", run, 2.0, -14.0)
+	_snd_loop("b_trot", "ot_yurish", trot, 1.0, -14.0)
+	_snd_loop("b_gallop", "ot_chopish", gallop, 1.0, -10.0)
+	_snd_loop("b_fil", "fil_qadam", fil, 0.3, -8.0)
+	_snd_loop("b_wheel", "arava_gildirak", wheel, 0.3, -10.0)
+	_snd_loop("b_fight", "jang_fon", fight if amb else 0.0, 2.0, -12.0)
+	Sfx.loop("b_wind", "shamol", -22.0, 2.0)
+
+
+func _snd_loop(key: String, name: String, amount: float, full: float, top_db: float) -> void:
+	if amount < 0.05:
+		Sfx.loop_vol(key, -60.0, 1.0)
+		return
+	var v := top_db + 20.0 * log(clampf(amount / full, 0.02, 1.0)) / log(10.0)
+	Sfx.loop(key, name, v, 0.8)
+
+
 func _hit(e: Dictionary, dmg: float) -> void:
 	if not e["alive"]:
 		return
@@ -1517,6 +1624,7 @@ func _hit(e: Dictionary, dmg: float) -> void:
 		return
 	e["alive"] = false
 	(e["disc"] as Node3D).visible = false
+	_death_snd(e)
 	if e.get("state", "") == "climbing":
 		_fall(e)
 	elif e.get("layer", "ground") == "wall":
@@ -1560,6 +1668,7 @@ func _shoot(f: Dictionary, e: Dictionary) -> void:
 		a.scale = Vector3(0.25, 0.25, 0.25)
 		var muzzle: Vector3 = from + (to - from).normalized() * 1.3
 		BattleFX.muzzle(world, muzzle, (to - from).normalized(), false)
+		Sfx.at("miltiq", muzzle, world, -2.0, 0.08, 0.05, 30.0)
 		arrows.append({"node": a, "from": muzzle, "to": to, "t": 0.0, "dur": from.distance_to(to) / 220.0, "target": e["i"],
 			"flat": true, "dmg": st["bullet"], "chance": st["chance"], "shooter_gun": f.get("gun", 0)})
 		return
@@ -1573,6 +1682,7 @@ func _shoot(f: Dictionary, e: Dictionary) -> void:
 		arrows.append({"node": a, "from": from, "to": to, "t": 0.0, "dur": dur, "target": e["i"], "wait": 1.18, "shooter": f["i"], "fire": fire})
 		return
 	arrows.append({"node": a, "from": from, "to": to, "t": 0.0, "dur": dur, "target": e["i"]})
+	Sfx.at("kamon", from, world, -6.0)
 
 
 func _smoke(p: Vector3, big := false) -> void:
@@ -1631,6 +1741,7 @@ func _cannon_shot(f: Dictionary, to: Vector3, seg: int) -> void:
 	var dir := Vector3(to.x - f["pos"].x, 0, to.z - f["pos"].z).normalized()
 	var muzzle: Vector3 = f["pos"] + Vector3(0, 1.0, 0) + dir * 1.6
 	BattleFX.muzzle(world, muzzle, dir, true)
+	Sfx.at("top", muzzle, world, 2.0, 0.08, 0.15, 60.0)
 	var ball := MeshInstance3D.new()
 	var sm := SphereMesh.new()
 	sm.radius = 0.18
@@ -1660,6 +1771,9 @@ func _update_arrows(dt: float) -> void:
 				ar["from"] = sh["pos"] + fwd * 0.75 + Vector3(0, 1.45, 0)
 				ar["dur"] = (ar["from"] as Vector3).distance_to(ar["to"]) / 48.0
 				(ar["node"] as Node3D).visible = true
+				Sfx.at("kamon", ar["from"], world, -5.0)
+				if _rng.randf() < 0.25:
+					Sfx.at("oq_uchish", (ar["from"] as Vector3).lerp(ar["to"], 0.5), world, -12.0, 0.1, 0.2)
 			continue
 		ar["t"] += dt
 		var k: float = ar["t"] / ar["dur"]
@@ -1677,6 +1791,8 @@ func _update_arrows(dt: float) -> void:
 			node.rotate_object_local(Vector3.UP, PI / 2.0)
 		if k >= 1.0:
 			arrows.erase(ar)
+			if not ar.has("dmg"):
+				Sfx.at("oq_tosh" if siege and _rng.randf() < 0.3 else "oq_tegish", ar["to"], world, -8.0)
 			if ar.has("dmg"):
 				BattleFX.bullet_hit(world, ar["to"])
 			elif ar.get("fire", false):
@@ -1711,6 +1827,8 @@ func _anim(f: Dictionary, a: String, restart := false) -> void:
 		return
 	f["anim"] = a
 	var node: Node3D = f["node"]
+	if a.begins_with("Reload") and _rng.randf() < 0.25:
+		Sfx.at("shompol", f["pos"] + Vector3(0, 1.2, 0), world, -12.0, 0.1, 0.3)
 	if node.has_meta("cannon") and node.has_meta("crew"):
 		# to'p (jamoasi bilan): to'pning o'zida animatsiya yo'q, jamoa harakat qiladi
 		if a.begins_with("Death"):
@@ -1779,6 +1897,9 @@ func _check_end() -> void:
 		return
 	finished = true
 	player_won = b == 0 and a > 0
+	Sfx.stop_loops("b_")
+	if player_won:
+		Sfx.play("urra", -3.0, 0.03, 1.0)
 	_apply()
 	for f in figs:
 		if f["alive"] and f["side"] == (0 if player_won else 1) and not _cav(f["kind"]):
@@ -1852,6 +1973,7 @@ func _retreat() -> void:
 
 
 func _close() -> void:
+	Sfx.stop_loops("b_")
 	if hud:
 		hud.queue_free()
 	closed.emit()
@@ -1873,6 +1995,7 @@ func _build_hud() -> void:
 	hud.add_child(cont)
 	vp = SubViewport.new()
 	vp.own_world_3d = true
+	vp.audio_listener_enable_3d = true      # jang ovozlari shu kamera "qulog'i" bilan eshitiladi
 	vp.msaa_3d = Viewport.MSAA_4X
 	vp.handle_input_locally = false
 	cont.add_child(vp)
@@ -2723,6 +2846,7 @@ func _raise_ladder(r: Dictionary, sp: Vector3) -> void:
 			L["raised"] = true
 			var nd: Node3D = L["node"]
 			nd.visible = true
+			Sfx.at("narvon", sp, world, -4.0)
 			if L["rope"]:
 				var s0: Vector3 = nd.scale
 				nd.scale = Vector3(1, 0.05, 1)
@@ -2742,6 +2866,7 @@ func _fall(e: Dictionary) -> void:
 	var land: Vector3 = e["pos"] + o * _rng.randf_range(1.6, 3.0)
 	land.y = h_at(land.x, land.z)
 	e["state"] = "fallen"
+	Sfx.at("qichqiriq", e["pos"], world, -2.0, 0.1, 0.15)
 	var h0: float = nd.position.y
 	var tw := nd.create_tween()
 	tw.set_parallel(true)
@@ -2760,6 +2885,7 @@ func _topple(li: int, why: String) -> void:
 		return
 	L["alive"] = false
 	var nd: Node3D = L["node"]
+	Sfx.at("narvon_qulash", L["spot"], world, 0.0, 0.08, 0.2)
 	if L["rope"]:
 		var tw0 := nd.create_tween()
 		tw0.tween_property(nd, "position:y", h_at(nd.position.x, nd.position.z) + 0.1, 0.5)
@@ -3177,6 +3303,8 @@ func _update_engines(dt: float) -> void:
 				# xodani zanjirda orqaga tortib, bir zarb bilan oldinga uradi
 				Unit3D.crew_play(node, "Attack", "tebratuvchi", true)
 				Unit3D.crew_play(node, "Block", "itaruvchi")
+				var hit_at := c + Vector3(0, 2.0, 0)
+				get_tree().create_timer(0.12).timeout.connect(func(): Sfx.at("taran", hit_at, world, 2.0, 0.06, 0.1, 40.0))
 				BattleFX.wall_hit(world, c + Vector3(0, 2.0, 0), out)
 				var lg: Node3D = node.get_node_or_null("Log")
 				if lg:
@@ -3210,6 +3338,7 @@ func _update_engines(dt: float) -> void:
 			node.rotation.y = lerp_angle(node.rotation.y, atan2(-d2.y, d2.x), 0.1)
 			if d2.length() <= 200.0 and e["cd"] <= 0.0:
 				e["cd"] = 6.5
+				Sfx.at("manjaniq", e["pos"], world, 0.0, 0.08, 0.2, 40.0)
 				var arm: Node3D = node.get_node_or_null("Arm")
 				if node.has_meta("crew"):
 					# ilgakchi ilgakni ochadi; keyin tortuvchilar chig'ir bilan yelkani qayta pastga tortadi, tosh tashuvchi yangi tosh olib keladi
@@ -3256,6 +3385,7 @@ func _update_stones(dt: float) -> void:
 		if k >= 1.0:
 			stones.erase(st)
 			(st["node"] as Node3D).queue_free()
+			Sfx.at("tosh_zarba", b, world, 0.0, 0.1, 0.1, 40.0)
 			if int(st["seg"]) < 0 or not siege:
 				for f in figs:
 					if f["alive"] and f["pos"].distance_to(b) < float(st.get("r", 3.5)):
@@ -3296,6 +3426,7 @@ func _breach(sg: Dictionary) -> void:
 func _breach_inner(sg: Dictionary) -> void:
 	## devor bo'lagi / darvoza qulaydi: modellar yerga cho'kadi, o'rnida xarsang uyumi
 	sg["hp"] = 0.0
+	Sfx.at("darvoza_sinish" if sg.get("gate", false) else "tosh_zarba", sg["center"], world, 4.0, 0.05, 0.2, 50.0)
 	for n in sg["nodes"]:
 		var nd: Node3D = n
 		var tw := nd.create_tween()
@@ -3324,3 +3455,7 @@ func _dust_puff(p: Vector3) -> void:
 	d.emitting = true
 	world.add_child(d)
 	get_tree().create_timer(4.0).timeout.connect(d.queue_free)
+
+
+func _exit_tree() -> void:
+	Sfx.stop_loops("b_")

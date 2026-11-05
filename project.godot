@@ -18,6 +18,7 @@ Tech="*res://scripts/tech.gd"
 Politics="*res://scripts/politics.gd"
 UIFx="*res://scripts/ui_fx.gd"
 Story="*res://scripts/story.gd"
+Sfx="*res://scripts/sfx.gd"
 
 [display]
 

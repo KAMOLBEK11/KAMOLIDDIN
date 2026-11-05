@@ -694,6 +694,7 @@ func _click(p: Vector3) -> void:
 			_add_tower_if_needed(sp)
 		chain_start = sp
 		_msg("%s qurildi: %d m%s" % [NAMES[tool], int(L), (", +%d minora" % tw) if tw > 0 else ""])
+		Sfx.play("qurilish", -5.0)
 		_rebuild()
 	elif tool == "tower":
 		if not _in_area(sp):
@@ -704,6 +705,7 @@ func _click(p: Vector3) -> void:
 				return
 		if _pay(_cost("tower")):
 			data["towers"].append({"p": [sp.x, sp.z]})
+			Sfx.play("qurilish", -5.0)
 			_rebuild()
 	elif tool == "gate":
 		var best := -1
@@ -731,6 +733,7 @@ func _click(p: Vector3) -> void:
 			return
 		if _pay(_cost("gate")):
 			data["gates"].append({"p": [gp.x, gp.z], "ang": _orient(a, b)})
+			Sfx.play("qurilish", -5.0)
 			_rebuild()
 	elif tool == "delete":
 		_delete_at(p)
@@ -743,6 +746,7 @@ func _click(p: Vector3) -> void:
 			return
 		if _pay(_cost(tool)):
 			data["buildings"].append({"t": tool, "p": [sp.x, sp.z], "rot": rot})
+			Sfx.play("qurilish", -5.0)
 			_rebuild()
 
 
@@ -945,9 +949,34 @@ func _unhandled_key_input(e: InputEvent) -> void:
 		_update_ghost()
 
 
+var _amb_t := 0.0
+
+
+func _ambience(delta: float) -> void:
+	## qal'a atrofidagi tabiat: kunduzi qushlar, kechasi chigirtkalar va boyqush, doim yengil shamol, yomg'ir
+	_amb_t -= delta
+	if _amb_t > 0.0 or daynight == null:
+		return
+	_amb_t = 1.0
+	var h: float = daynight.hour
+	var night := h < 5.5 or h > 20.0
+	Sfx.loop("c_amb", "tun" if night else "kunduz", -10.0 if night else -12.0, 2.0)
+	Sfx.loop("c_wind", "shamol", -20.0 if daynight.weather in ["ochiq", "bulut"] else -9.0, 2.0)
+	if daynight.weather == "yomgir":
+		Sfx.loop("c_rain", "yomgir", -8.0, 3.0)
+	else:
+		Sfx.stop_loop("c_rain", 3.0)
+	# temirchi bo'lsa vaqti-vaqti bilan sandon ovozi
+	if not night and CastleEco.count(_p(), "smithy") > 0 and randf() < 0.08:
+		Sfx.play("sandon", -22.0, 0.1, 2.0)
+	if CastleEco.count(_p(), "stable") > 0 and randf() < 0.05:
+		Sfx.play("ot_pishqirish" if randf() < 0.8 else "ot_kishnash", -24.0, 0.1, 3.0)
+
+
 func _process(delta: float) -> void:
 	if cam == null:
 		return
+	_ambience(delta)
 	if walk_mode:
 		_walk(delta)
 	var dir := Vector3.ZERO
@@ -1691,6 +1720,7 @@ func rise_out() -> void:
 
 
 func _close() -> void:
+	Sfx.stop_loops("c_")
 	if Game.changed.is_connected(_show_army):
 		Game.changed.disconnect(_show_army)
 	if hud:
@@ -1768,6 +1798,7 @@ func _build_army_cards() -> void:
 		if e != "":
 			_msg(e, true)
 		else:
+			Sfx.play("sandon", -4.0)
 			for nd in _all_figs():
 				Unit3D.equip(nd, CastleEco.gear(_p()))
 			_army_cards.clear()
@@ -1901,6 +1932,7 @@ func _food_per_day() -> float:
 
 func _recruit(kind: String, n: int) -> void:
 	if CastleEco.recruit(_p(), kind, n):
+		Sfx.play("tanga", -4.0)
 		_msg("%d %s yollandi - kazarmada tayyorlanmoqda" % [n, CastleEco.units()[kind]["name"].to_lower()])
 	_show_army()
 
@@ -2034,3 +2066,7 @@ func _refresh_army(force := false) -> void:
 	_task_mode = ""          # vazifa ko'rinishi qayta quriladi (yangi askarlar ham qo'shiladi)
 	if per > 1:
 		_msg("Hovlida: 1 figura = %d askar" % per)
+
+
+func _exit_tree() -> void:
+	Sfx.stop_loops("c_")
