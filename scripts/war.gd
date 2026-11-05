@@ -231,12 +231,17 @@ func send_army(from_id: String, to_id: String) -> void:
 			Game.message.emit("Hujum faqat chegaradosh viloyatdan boshlanadi. Avval qo'shinni %s chegarasiga yaqin viloyatga olib boring." % _name(to_id), "bad")
 			send_count = {}
 			return
-		if not Game.has_post(from_id, to_id):
+		if Game.era < 4:
+			pass        # eski zamonda chegara posti shart emas: qal'a qo'shini to'g'ridan-to'g'ri yurishga chiqadi
+		elif not Game.has_post(from_id, to_id):
 			Game.message.emit("%s - %s chegarasida post yo'q. Avval chegara posti quring va u yerga qo'shin to'plang." % [_name(from_id), _name(to_id)], "bad")
 			send_count = {}
 			return
-		site = "post:" + to_id
-		var at_post := Game.site_units(p, site)
+		if Game.era < 4:
+			pass
+		else:
+			site = "post:" + to_id
+		var at_post := Game.site_units(p, site) if site != "" else {"soldier": ns, "tank": nt}
 		ns = at_post["soldier"]
 		nt = at_post["tank"]
 		if ns + nt < 1.0:

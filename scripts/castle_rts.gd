@@ -258,6 +258,7 @@ func _ring(n: Node3D, on: bool) -> void:
 		mi.material_override = m
 		mi.position.y = 0.06
 		mi.scale = Vector3(1, 0.15, 1)
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		n.add_child(mi)
 	elif not on and r != null:
 		r.queue_free()
@@ -400,9 +401,49 @@ func order_move(gp: Vector3, shape := "") -> void:
 	var order := list.duplicate()
 	order.sort_custom(func(a, b): return (a as Node3D).position.distance_to(gp) < (b as Node3D).position.distance_to(gp))
 	var fails := 0
+	# saf bo'lib yurish: butun guruh uchun bitta yo'l topiladi, har askar o'z joyi bilan unga parallel yuradi
+	# (bitta ilondek qator bo'lib ketmaydi)
+	var lead := path(cen, Vector3(gp.x, 0, gp.z))
 	for i in order.size():
-		if not _send(order[i], sl[i][0], sl[i][1], "idle"):
-			fails += 1
+		var nd: Node3D = order[i]
+		if lead.size() <= 1 or nd.get_meta("onwall", false):
+			if not _send(nd, sl[i][0], sl[i][1], "idle"):
+				fails += 1
+			continue
+		var off: Vector3 = nd.position - cen
+		off.y = 0
+		off = off.limit_length(8.0)
+		var pts: Array = []
+		var prev := Vector3(nd.position.x, 0, nd.position.z)
+		var ok := true
+		for k in lead.size() - 1:
+			var w: Vector3 = lead[k] + off * (1.0 - float(k + 1) / float(lead.size()))
+			var ci := _cell(w)
+			if not _okc(ci) or astar.is_point_solid(ci):
+				w = lead[k]
+			if not _los(prev, w):
+				var sub := path(prev, w)
+				if sub.is_empty():
+					ok = false
+					break
+				pts += sub
+			else:
+				pts.append(w)
+			prev = w
+		if ok:
+			if not _los(prev, sl[i][0]):
+				var sub2 := path(prev, sl[i][0])
+				if sub2.is_empty():
+					ok = false
+				else:
+					pts += sub2
+			else:
+				pts.append(sl[i][0])
+		if not ok:
+			if not _send(nd, sl[i][0], sl[i][1], "idle"):
+				fails += 1
+			continue
+		_start(nd, [{"k": "walk", "pts": pts, "run": _plen(nd.position, pts) > 14.0}, {"k": "face", "yaw": sl[i][1]}, {"k": "stance", "s": "idle"}])
 	if fails > 0:
 		var outside: bool = c.stats.get("closed", false) and not c._inside(gp)
 		if outside and not gates_open():
@@ -446,6 +487,10 @@ func _plen(a: Vector3, pts: Array) -> float:
 
 
 func _start(n: Node3D, steps: Array) -> void:
+	if n.has_meta("sp_up"):
+		n.remove_meta("sp_up")
+		ShieldPose.set_up(n, false)
+	n.set_meta("follow", false)
 	if n.has_meta("tw"):
 		var t = n.get_meta("tw")
 		if t is Tween and (t as Tween).is_valid():
@@ -505,11 +550,114 @@ func order_guard() -> void:
 	var sl := _slots(list.size(), Vector3(at.x, 0, at.z), Vector3(0, 0, 1), "ring")
 	for i in list.size():
 		_send(list[i], sl[i][0], sl[i][1], "guard")
+		(list[i] as Node3D).set_meta("follow", true)
+		(list[i] as Node3D).set_meta("fidx", i)
+		(list[i] as Node3D).set_meta("fshape", "ring")
 	_guard_from = at
 	c._msg("%d askar qo'mondonni o'rab, himoya qilmoqda" % list.size())
 
 
 var _guard_from := Vector3.ZERO
+
+
+func _tb_slots(n: int, at: Vector3, fwd: Vector3, hole: bool) -> Array:
+	## toshbaqa: zich to'rtburchak. [joy, yuz burchagi, chetdami]. hole - o'rtada qo'mondon uchun joy
+	fwd = Vector3(fwd.x, 0, fwd.z).normalized()
+	if fwd.length() < 0.1:
+		fwd = Vector3(0, 0, 1)
+	var right := Vector3(-fwd.z, 0, fwd.x)
+	var cols := maxi(2, int(ceil(sqrt(float(n + (1 if hole else 0))))))
+	var rows := int(ceil(float(n + (1 if hole else 0)) / cols))
+	if hole and cols % 2 == 0:
+		cols += 1
+		rows = int(ceil(float(n + 1) / cols))
+	if hole and rows < 3:
+		rows = 3
+	var sp := 0.95
+	var res: Array = []
+	var cr := rows / 2
+	var cc := cols / 2
+	for r in rows:
+		for col in cols:
+			if hole and r == cr and col == cc:
+				continue
+			var pos := at + fwd * ((float(rows - 1) * 0.5 - r) * sp) + right * ((col - (cols - 1) * 0.5) * sp)
+			var outer := r == 0 or col == 0 or col == cols - 1 or r == rows - 1
+			var face := fwd
+			if r == 0:
+				face = fwd
+			elif r == rows - 1:
+				face = -fwd
+			elif col == 0:
+				face = -right
+			elif col == cols - 1:
+				face = right
+			res.append([pos, _yaw(face), outer])
+	# chet joylarni avval to'ldiramiz (askar kam bo'lsa ham atrof yopiq bo'lsin)
+	res.sort_custom(func(a, b): return int(a[2]) > int(b[2]))
+	return res.slice(0, n)
+
+
+func order_testudo(around_cmd := false, list: Array = []) -> void:
+	## "QALQON!" - askarlar zich to'planib qalqonlarni boshi ustiga va atrofga ko'taradi
+	if list.is_empty():
+		list = _valid_sel()
+	var inf: Array = list.filter(func(x): return (x as Node3D).get_meta("kind", "") in ["nayzachi", "qilichboz", "sarboz"])
+	if inf.is_empty():
+		c._msg("Qalqonli askar (nayzachi, qilichboz) yo'q", true)
+		return
+	var at := _center(inf)
+	var fwd: Vector3 = -c.cam.global_transform.basis.z
+	var cm_ok: bool = around_cmd and c.cmdr != null and is_instance_valid(c.cmdr)
+	if cm_ok:
+		at = Vector3(c.cmdr.position.x, 0, c.cmdr.position.z)
+		fwd = Vector3(cos(c.cmdr.rotation.y), 0, -sin(c.cmdr.rotation.y))
+	var sl := _tb_slots(inf.size(), at, fwd, cm_ok)
+	var order := inf.duplicate()
+	order.sort_custom(func(a, b): return (a as Node3D).position.distance_to(at) < (b as Node3D).position.distance_to(at))
+	# eng yaqin askar - chetdagi joyga
+	for i in order.size():
+		var nd: Node3D = order[i]
+		_send(nd, sl[i][0], sl[i][1], "tb_out" if sl[i][2] else "tb_in")
+		nd.set_meta("follow", cm_ok)
+		nd.set_meta("fidx", i)
+		nd.set_meta("fshape", "testudo")
+	_guard_from = at
+	Sfx.play("qalqon", -6.0, 0.05, 0.3)
+	c._msg("QALQON! %d askar toshbaqa bo'lib qalqonlarni ko'tardi%s" % [inf.size(), " - qo'mondonni o'rab oldi" if cm_ok else ""])
+
+
+func near_cmd(r: float, kinds: Array) -> Array:
+	var out: Array = []
+	if c.cmdr == null or not is_instance_valid(c.cmdr):
+		return out
+	for n in units():
+		var nd: Node3D = n
+		if nd.position.distance_to(c.cmdr.position) < r and (kinds.is_empty() or nd.get_meta("kind", "") in kinds) and not nd.get_meta("onwall", false):
+			out.append(nd)
+	return out
+
+
+func order_charge(list: Array) -> void:
+	## "OLG'A!" - qo'mondon qaragan tomonga yugurib hujumga
+	if c.cmdr == null or list.is_empty():
+		return
+	var fwd := Vector3(cos(c.cmdr.rotation.y), 0, -sin(c.cmdr.rotation.y))
+	var at: Vector3 = c.cmdr.position + fwd * 16.0
+	var sl := _slots(list.size(), Vector3(at.x, 0, at.z), fwd, "line")
+	for i in list.size():
+		_send(list[i], sl[i][0], sl[i][1], "attack")
+	c._msg("OLG'A! %d askar hujumga tashlandi" % list.size())
+
+
+func order_follow(list: Array) -> void:
+	## "ORTIMDAN!" - askarlar qo'mondon atrofida halqa bo'lib unga ergashadi
+	if c.cmdr == null or list.is_empty():
+		return
+	sel = list
+	order_guard()
+	for i in list.size():
+		(list[i] as Node3D).set_meta("fshape", "ring")
 
 
 func order_aim() -> void:
@@ -686,22 +834,29 @@ func update(delta: float) -> void:
 	_guard_t -= delta
 	if _guard_t <= 0.0:
 		_guard_t = 0.8
-		if c.cmdr != null and is_instance_valid(c.cmdr) and c.cmdr.position.distance_to(_guard_from) > 3.0:
-			var gl: Array = []
-			for n in c._all_figs():
-				var r = (n as Node3D).get_meta("rts", null)
-				if r != null and r["stance"] == "guard":
-					gl.append(n)
-			if not gl.is_empty():
-				_guard_from = c.cmdr.position
-				var sl := _slots(gl.size(), Vector3(_guard_from.x, 0, _guard_from.z), Vector3(0, 0, 1), "ring")
-				for i in gl.size():
-					var nd2: Node3D = gl[i]
-					var pts := path(nd2.position, sl[i][0])
-					if not pts.is_empty():
-						var r2: Dictionary = nd2.get_meta("rts")
-						r2["steps"] = [{"k": "walk", "pts": pts, "run": _plen(nd2.position, pts) > 6.0}, {"k": "face", "yaw": sl[i][1]}, {"k": "stance", "s": "guard"}]
-						r2["i"] = 0
+		if c.cmdr != null and is_instance_valid(c.cmdr) and c.cmdr.position.distance_to(_guard_from) > 2.5:
+			for shape in ["ring", "testudo"]:
+				var gl: Array = []
+				for n in c._all_figs():
+					var nd: Node3D = n
+					if nd.get_meta("follow", false) and nd.get_meta("fshape", "") == shape and nd.has_meta("rts"):
+						gl.append(nd)
+				if gl.is_empty():
+					continue
+				gl.sort_custom(func(a, b): return int((a as Node3D).get_meta("fidx", 0)) < int((b as Node3D).get_meta("fidx", 0)))
+				var at := Vector3(c.cmdr.position.x, 0, c.cmdr.position.z)
+				var fwd := Vector3(cos(c.cmdr.rotation.y), 0, -sin(c.cmdr.rotation.y))
+				var sl: Array = _slots(gl.size(), at, Vector3(0, 0, 1), "ring") if shape == "ring" else _tb_slots(gl.size(), at, fwd, true)
+				for k in gl.size():
+					var nd2: Node3D = gl[k]
+					var pts := path(nd2.position, sl[k][0])
+					if pts.is_empty():
+						continue
+					var r2: Dictionary = nd2.get_meta("rts")
+					var st: String = r2["stance"] if shape == "ring" else ("tb_out" if sl[k][2] else "tb_in")
+					r2["steps"] = [{"k": "walk", "pts": pts, "run": shape == "ring" and _plen(nd2.position, pts) > 6.0}, {"k": "face", "yaw": sl[k][1]}, {"k": "stance", "s": st}]
+					r2["i"] = 0
+			_guard_from = c.cmdr.position
 
 
 func _play(nd: Node3D, r: Dictionary, a: String) -> void:
@@ -734,7 +889,7 @@ func _step(nd: Node3D, delta: float) -> void:
 			var cur := Vector3(nd.position.x, y, nd.position.z)
 			var d := Vector3(tgt.x, y, tgt.z) - cur
 			var horse: bool = nd.get_meta("kind", "") in ["otliq", "fil", "arava"]
-			var sp := (RUN_SP if s.get("run", false) else WALK_SP) * (1.9 if horse else 1.0)
+			var sp := (RUN_SP if s.get("run", false) else WALK_SP) * (1.9 if horse else 1.0) * (0.8 if nd.get_meta("sp_up", false) else 1.0)
 			var stepd := sp * delta
 			if d.length() <= stepd:
 				nd.position = Vector3(tgt.x, y, tgt.z)
@@ -776,6 +931,17 @@ func _step(nd: Node3D, delta: float) -> void:
 
 func _apply_stance(nd: Node3D, s: String) -> void:
 	var rd := Unit3D.rider_of(nd)
+	if s == "tb_in":
+		Unit3D.play(nd, "Idle")
+		nd.set_meta("sp_up", true)
+		ShieldPose.set_up(nd, true)
+		return
+	if s == "tb_out":
+		Unit3D.play(nd, "Block")
+		if nd.has_meta("sp_up"):
+			nd.remove_meta("sp_up")
+			ShieldPose.set_up(nd, false)
+		return
 	match s:
 		"block", "guard":
 			if rd:
@@ -897,6 +1063,8 @@ func _build_ui() -> void:
 	_btn(g1, "To'rtburchak", func(): order_form("square"))
 	_btn(g1, "Qalqon devori", func(): order_form("shield"))
 	_btn(g1, "Halqa", func(): order_form("ring"))
+	_btn(g1, "TOSHBAQA (qalqonlar tepada)", func(): order_testudo(false))
+	_btn(g1, "Qo'mondonni o'rab toshbaqa", func(): order_testudo(true))
 	var g2 := _grid(cmd_box, "HOLAT")
 	_btn(g2, "Qalqon bilan himoya", func(): order_stance("block"))
 	_btn(g2, "Hujumga shay", func(): order_stance("attack"))
@@ -935,10 +1103,11 @@ func _refresh_ui() -> void:
 	if info == null:
 		return
 	gate_btn.text = "Darvozani yopish" if gates_open() else "Darvozani ochish"
+	gate_btn.visible = not c.data["gates"].is_empty()
 	var list := _valid_sel()
 	cmd_box.visible = not list.is_empty()
 	if list.is_empty():
-		info.text = "ASKARLAR: sichqoncha bilan askarni bosing yoki ramka chizib belgilang (Shift - qo'shish, ikki marta bosish - shu turdagi hammasi). Keyin yerni bosing - o'sha yerga boradi.\nDarvoza: %s" % ("OCHIQ" if gates_open() else "YOPIQ")
+		info.text = "ASKARLAR: askarni bosing yoki ramka chizing. Yerni bosing - o'sha yerga boradi." + ("\nDarvoza: %s" % ("OCHIQ" if gates_open() else "YOPIQ") if not c.data["gates"].is_empty() else "")
 		return
 	var cnt := {}
 	for n in list:

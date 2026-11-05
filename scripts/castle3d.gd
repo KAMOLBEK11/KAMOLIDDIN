@@ -78,6 +78,7 @@ var _g_n := 0
 var _g_half := 0
 var rts: CastleRTS             # askarlarni sichqoncha bilan boshqarish
 var _gate_doors: Array = []
+var _bld_box: Array = []       # binolarning haqiqiy o'lchami (lokal AABB)
 
 
 # ================================================================ boshlash
@@ -318,8 +319,8 @@ func _flame(s: float) -> CPUParticles3D:
 		_flame_mat.albedo_texture = gt
 	qm.material = _flame_mat
 	p.mesh = qm
-	p.amount = 16
-	p.lifetime = 0.55
+	p.amount = 12
+	p.lifetime = 0.5
 	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
 	p.emission_sphere_radius = 0.1 * s
 	p.direction = Vector3.UP
@@ -333,8 +334,8 @@ func _flame(s: float) -> CPUParticles3D:
 	sc.add_point(Vector2(1, 0.15))
 	p.scale_amount_curve = sc
 	var cg := Gradient.new()
-	cg.set_color(0, Color(1.0, 0.95, 0.6, 0.95))
-	cg.add_point(0.4, Color(1.0, 0.55, 0.12, 0.85))
+	cg.set_color(0, Color(1.0, 0.72, 0.28, 0.75))
+	cg.add_point(0.35, Color(1.0, 0.42, 0.08, 0.6))
 	cg.set_color(cg.get_point_count() - 1, Color(0.7, 0.15, 0.05, 0.0))
 	p.color_ramp = cg
 	p.position = Vector3(0, -0.15, 0)
@@ -348,7 +349,7 @@ func _brazier(p: Vector3) -> void:
 		var o: Node3D = sc.instantiate()
 		o.position = p
 		build_root.add_child(o)
-	_torch(p + Vector3(0, 1.75, 0), Color(1.0, 0.6, 0.28), 18.0, 1.3)
+	_torch(p + Vector3(0, 1.55, 0), Color(1.0, 0.6, 0.28), 18.0, 0.95)
 
 
 func _wall_torch(p: Vector3, yaw: float) -> void:
@@ -431,15 +432,24 @@ func _rebuild_lights() -> void:
 			_wall_torch(q + nrm * 1.62 + Vector3(0, 4.6, 0), atan2(-nrm.z, nrm.x))
 			nwt += 1
 	# binolar eshigi oldida ikki tomonda mash'al
-	for b in data["buildings"]:
+	for bi in data["buildings"].size():
+		var b: Dictionary = data["buildings"][bi]
 		if not b["t"] in ["barracks", "mosque", "smithy", "stable", "granary", "market", "mint", "house"]:
 			continue
 		var r2 := float(b["rot"])
+		var bs: Basis = Basis(Vector3.UP, r2)
+		var fwd := bs * Vector3(0, 0, 1)
 		var f: Vector2 = FOOT.get(b["t"], Vector2(8, 8))
-		var fwd := Basis(Vector3.UP, r2) * Vector3(0, 0, 1)
-		var side := Basis(Vector3.UP, r2) * Vector3(1, 0, 0)
+		var front := f.y * 0.5
+		var hx := f.x * 0.3
+		var hy := 2.4
+		if bi < _bld_box.size() and (_bld_box[bi] as AABB).size.x > 0.5:
+			var bx: AABB = _bld_box[bi]
+			front = bx.end.z
+			hx = minf(2.4, bx.size.x * 0.28)
+			hy = clampf(bx.size.y * 0.45, 1.6, 3.2)
 		for s in ([-1.0, 1.0] if b["t"] != "house" else [1.0]):
-			_wall_torch(_v(b["p"]) + fwd * (f.y * 0.5 + 0.15) + side * s * minf(2.4, f.x * 0.3) + Vector3(0, 2.4, 0), atan2(-fwd.z, fwd.x))
+			_wall_torch(_v(b["p"]) + bs * Vector3(s * hx, hy, front + 0.05), atan2(-fwd.z, fwd.x))
 
 func _rebuild() -> void:
 	for c in build_root.get_children():
@@ -519,11 +529,21 @@ func _rebuild() -> void:
 				u.rotation.y = float(g["ang"]) - PI / 2.0
 				build_root.add_child(u)
 				_add_guard(u, u.rotation.y, "gate")
+	_bld_box.clear()
 	for b in data["buildings"]:
 		var o := _inst(b["t"])
 		o.position = _v(b["p"])
 		o.rotation.y = float(b["rot"])
 		build_root.add_child(o)
+		# modelning haqiqiy o'lchami (mash'allar devorga yopishib tursin)
+		var bx := AABB()
+		var first := true
+		var inv := o.global_transform.affine_inverse()
+		for mi in o.find_children("*", "MeshInstance3D", true, false):
+			var ab: AABB = inv * (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()
+			bx = ab if first else bx.merge(ab)
+			first = false
+		_bld_box.append(bx)
 		_live_flags(o)
 	_rebuild_lights()
 	_analyze()
@@ -531,6 +551,7 @@ func _rebuild() -> void:
 	_refresh_army(true)
 	if rts:
 		rts.rebuild_nav()
+		rts._refresh_ui()
 	_rebuild_gate_doors()
 
 
@@ -1261,6 +1282,9 @@ func _unhandled_key_input(e: InputEvent) -> void:
 	if walk_mode and k == KEY_F:
 		_inspect()
 		return
+	if walk_mode and rts and k in [KEY_G, KEY_V, KEY_C, KEY_X]:
+		_cmd_shout(k)
+		return
 	if k == KEY_ESCAPE and walk_mode:
 		_toggle_walk()
 		return
@@ -1479,9 +1503,18 @@ func _walk_mouse(mb: InputEventMouseButton) -> void:
 		else:
 			_lmb = false
 			if not _walk_drag:
-				_cmd_attack()
+				if rts and rts.aim_mode:
+					rts.order_shoot(_ground_at(mb.position))
+					rts.sel = []
+				else:
+					_cmd_attack()
 			_walk_drag = false
 	elif mb.button_index == MOUSE_BUTTON_RIGHT:
+		if mb.pressed and rts and rts.aim_mode:
+			rts.aim_mode = false
+			rts.sel = []
+			_msg("O'q yomg'iri bekor qilindi")
+			return
 		if mb.pressed:
 			_cmd_act = "block"
 			var rd := Unit3D.rider_of(cmdr)
@@ -1494,6 +1527,30 @@ func _walk_mouse(mb: InputEventMouseButton) -> void:
 		else:
 			_cmd_act = ""
 			_walk_anim = ""
+
+
+func _cmd_shout(k: int) -> void:
+	## qo'mondon buyruqlari (videodagidek): qo'mondon qo'lini ko'tarib baqiradi, askarlar bajaradi
+	var rd := Unit3D.rider_of(cmdr)
+	_act(rd if rd else cmdr, "Cheer")
+	_walk_anim = "Cheer"
+	Sfx.play("qomondon", -4.0, 0.05, 0.4)
+	match k:
+		KEY_G:
+			rts.order_testudo(true, rts.near_cmd(30.0, ["nayzachi", "qilichboz", "sarboz"]))
+		KEY_V:
+			var arch := rts.near_cmd(45.0, ["kamonchi", "sarboz"])
+			if arch.is_empty():
+				_msg("Yaqinda kamonchi yo'q", true)
+				return
+			rts.sel = arch
+			rts.aim_mode = true
+			_msg("O'Q YOMG'IRI! Nishonni chap tugma bilan bosing (o'ng tugma - bekor)")
+		KEY_C:
+			rts.order_charge(rts.near_cmd(30.0, []))
+		KEY_X:
+			rts.order_follow(rts.near_cmd(30.0, []))
+			_msg("ORTIMDAN! Askarlar qo'mondonga ergashmoqda")
 
 
 func _cmd_attack() -> void:
@@ -1564,7 +1621,7 @@ func _walk(delta: float) -> void:
 		if nd.position.distance_to(cmdr.position) < 6.0 and not nd.get_meta("post", false):
 			near += 1
 	if _walk_hint:
-		_walk_hint.text = "QO'MONDON: %s%s\nWASD yurish, Shift yugurish  |  chap tugma - zarba, o'ng tugma - qalqon, chap tugmani bosib sudrash - atrofga qarash  |  1 nayza+qalqon, 2 qilich, 3 otda  |  F ko'zdan kechirish  |  Tab chiqish" % [
+		_walk_hint.text = "QO'MONDON: %s%s\nWASD yurish, Shift yugurish  |  chap tugma - zarba, o'ng tugma - qalqon, chap tugmani bosib sudrash - atrofga qarash  |  1 nayza+qalqon, 2 qilich, 3 otda\nG - QALQON! (toshbaqa)  |  V - O'Q YOMG'IRI!  |  C - OLG'A!  |  X - ORTIMDAN!  |  F ko'zdan kechirish  |  Tab chiqish" % [
 			WALK_NAMES[_walk_weapon], "  -  yaqinda %d askar" % near if near > 0 else ""]
 
 

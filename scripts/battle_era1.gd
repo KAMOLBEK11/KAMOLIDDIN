@@ -122,7 +122,7 @@ var _eng_mat: StandardMaterial3D
 const SHOUTS := {
 	"olga": {"key": "Q", "text": "OLG'A!", "cd": 14.0, "desc": "yaqin bo'linmalar hujumga, ruh +25"},
 	"turing": {"key": "E", "text": "TURINGLAR!", "cd": 16.0, "desc": "qochganlar qaytadi, saf mustahkam, ruh +20"},
-	"qalqon": {"key": "R", "text": "QALQON!", "cd": 18.0, "desc": "8 soniya zarba 40% kam o'tadi"},
+	"qalqon": {"key": "R", "text": "QALQON!", "cd": 18.0, "desc": "yaqin piyodalar toshbaqa safiga to'planib qalqonlarni ko'taradi (10 s)"},
 	"yomgir": {"key": "G", "text": "O'Q YOMG'IRI!", "cd": 12.0, "desc": "hamma kamonchilar siz qaragan dushmanga otadi"},
 }
 var CMD_KIND: Dictionary = {"qilich": "qomondon", "kamon": "sarboz", "nayza": "nayzachi"} if Game.era == 2 else {"qilich": "qilichboz", "kamon": "kamonchi", "nayza": "nayzachi"}
@@ -621,9 +621,15 @@ func _shout(k: String) -> void:
 		"qalqon":
 			shield_t = 8.0
 			for r in near:
+				if r["kind"] in ["qilichboz", "nayzachi"] and r.get("form", "") != "toshbaqa":
+					r["form_prev"] = r.get("form", "")
+					r["form"] = "toshbaqa"
+					r["form_t"] = 10.0
+					r["anchor"] = _center(r)
 				for fi in r["figs"]:
 					if figs[fi]["alive"] and not _ranged(figs[fi]["kind"]) and not _cav(figs[fi]["kind"]):
 						_anim(figs[fi], "Block", true)
+			Sfx.play("qalqon", -2.0, 0.05, 0.3)
 			tip_label.text = "\"QALQON!\" - 8 soniya zarbalar kuchsiz o'tadi."
 		"yomgir":
 			var node: Node3D = figs[cmd]["node"]
@@ -668,7 +674,8 @@ const FORMS := [["", "Oddiy (Z)", "oddiy saf", ["qilichboz", "nayzachi", "kamonc
 	["shield", "Qalqon devori (X)", "zich saf, qalqonlar ko'tarilgan: o'q kam o'tadi, zarba 40% kam, sekin yuradi", ["qilichboz", "nayzachi"]],
 	["brace", "Nayza safi (C)", "nayzalar yerga tiralgan: otliqqa qarshi 2 barobar kuchli, joyidan qo'zg'almaydi", ["nayzachi", "sarboz"]],
 	["volley", "O'q yomg'iri / zalp (V)", "butun bo'linma buyruq bilan birga otadi", ["kamonchi", "sarboz"]],
-	["loose", "Tarqoq saf (B)", "keng yoyilgan saf: o'q va to'p kamroq tegadi", ["qilichboz", "nayzachi", "kamonchi", "sarboz", "otliq"]]]
+	["loose", "Tarqoq saf (B)", "keng yoyilgan saf: o'q va to'p kamroq tegadi", ["qilichboz", "nayzachi", "kamonchi", "sarboz", "otliq"]],
+	["toshbaqa", "Toshbaqa (T)", "zich to'planib qalqonlarni boshi ustiga va atrofga ko'taradi: o'q deyarli o'tmaydi, juda sekin yuradi", ["qilichboz", "nayzachi"]]]
 var form_row: HBoxContainer
 var fire_btn: Button
 
@@ -737,12 +744,44 @@ func _refresh_form_btns() -> void:
 		fire_btn.add_theme_color_override("font_color", Color("#ff9a4a") if sel >= 0 and regs[sel].get("fire", false) else Color("#f1e4c8"))
 
 
+func _tb_cols(r: Dictionary) -> int:
+	var n := 0
+	for fi in r["figs"]:
+		if figs[fi]["alive"]:
+			n += 1
+	return maxi(2, int(ceil(sqrt(float(n)))))
+
+
+func _tb_outer(r: Dictionary, idx: int) -> bool:
+	## toshbaqa safining chetidagi askar (qalqonni yonga/oldinga tutadi); ichkaridagilar - boshi ustiga
+	var cols := _tb_cols(r)
+	var n := 0
+	for fi in r["figs"]:
+		if figs[fi]["alive"]:
+			n += 1
+	var rows := int(ceil(float(n) / cols))
+	var row := idx / cols
+	var col := idx % cols
+	return row == 0 or col == 0 or col == cols - 1 or row == rows - 1
+
+
+func _shield_up(f: Dictionary, on: bool) -> void:
+	if bool(f.get("sp", false)) == on:
+		return
+	f["sp"] = on
+	ShieldPose.set_up(f["node"], on)
+
+
 func _slot(r: Dictionary, idx: int) -> Vector3:
 	var form: String = r.get("form", "")
 	var cols := 7 if form != "shield" else 9
+	if form == "toshbaqa":
+		cols = _tb_cols(r)
 	var sp := 2.8 if _cav(r["kind"]) else (4.5 if r["kind"] == "top" else 1.7)
 	if form in ["shield", "brace"]:
 		sp = 1.05          # zich saf: qalqonlar bir-biriga tegib turadi
+	elif form == "toshbaqa":
+		sp = 0.92          # toshbaqa: yelkama-yelka
 	elif form == "loose":
 		sp = 3.2           # tarqoq saf: o'q kamroq tegadi
 	var row := idx / cols
@@ -1126,8 +1165,8 @@ func _unhandled_key_input(e: InputEvent) -> void:
 			_begin()
 		elif k == KEY_N:
 			_toggle_fire()
-		elif k in [KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B]:
-			_set_form(FORMS[[KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B].find(k)][0])
+		elif k in [KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_T]:
+			_set_form(FORMS[[KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_T].find(k)][0])
 
 
 # ================================================================ jang mantiqi
@@ -1186,6 +1225,12 @@ func _process(delta: float) -> void:
 	for k in shout_cd:
 		shout_cd[k] = maxf(0.0, shout_cd[k] - delta * sim_speed)
 	shield_t = maxf(0.0, shield_t - delta * sim_speed)
+	for r in regs:
+		if r.has("form_t"):
+			r["form_t"] = float(r["form_t"]) - delta * sim_speed
+			if r["form_t"] <= 0.0:
+				r["form"] = r.get("form_prev", "")
+				r.erase("form_t")
 	if cmd_mode and not _cmd_alive():
 		_toggle_cmd()
 	var dir := Vector3.ZERO
@@ -1385,6 +1430,8 @@ func _simulate(dt: float) -> void:
 						var er: Dictionary = regs[e["reg"]]
 						if er.get("form", "") == "shield":
 							dmg *= 0.6          # qalqon devori
+						elif er.get("form", "") == "toshbaqa":
+							dmg *= 0.7
 						if er.get("form", "") == "brace" and _cav(f["kind"]):
 							_hit(f, 0.25)       # otliq nayza safiga urilib o'zi yaralanadi
 						if _cav(f["kind"]) and f.get("charge", 0.0) > 2.0:
@@ -1414,11 +1461,18 @@ func _simulate(dt: float) -> void:
 		var idx: int = r["figs"].find(f["i"])
 		var slot := _slot(r, idx)
 		if Vector2(slot.x - f["pos"].x, slot.z - f["pos"].z).length() > 0.8:
-			_move(f, slot, st["speed"] * (0.6 if r["order"] == "hold" else 1.0) * (0.45 if r.get("form", "") == "shield" else 1.0), dt)
-			_anim(f, "Walk" if r["order"] != "move" or _cav(f["kind"]) else "Run")
+			_move(f, slot, st["speed"] * (0.6 if r["order"] == "hold" else 1.0) * ({"shield": 0.45, "toshbaqa": 0.35}.get(r.get("form", ""), 1.0)), dt)
+			_anim(f, "Walk" if r["order"] != "move" or _cav(f["kind"]) or r.get("form", "") == "toshbaqa" else "Run")
+			_shield_up(f, r.get("form", "") == "toshbaqa")
 		else:
 			node.rotation.y = lerp_angle(node.rotation.y, r["face"], 0.1)
-			_anim(f, "Block" if r.get("form", "") in ["shield", "brace"] else "Idle")
+			if r.get("form", "") == "toshbaqa":
+				var outer := _tb_outer(r, idx)
+				_anim(f, "Block" if outer else "Idle")
+				_shield_up(f, not outer)
+			else:
+				_anim(f, "Block" if r.get("form", "") in ["shield", "brace"] else "Idle")
+				_shield_up(f, false)
 	if siege:
 		_update_engines(dt)
 	_update_stones(dt)
@@ -1827,7 +1881,9 @@ func _update_arrows(dt: float) -> void:
 				if not ar.has("dmg"):
 					cover *= 1.0 - 0.22 * float(e.get("armor", 0))      # zirhdan o'q o'tmaydi
 				var ef: String = regs[e["reg"]].get("form", "")
-				if ef == "shield":
+				if ef == "toshbaqa":
+					cover *= 0.1          # qalqonlar tomdek yopilgan - o'q deyarli o'tmaydi
+				elif ef == "shield":
 					cover *= 0.3          # qalqonlar tepaga ko'tarilgan
 				elif ef == "loose":
 					cover *= 0.6
@@ -1837,7 +1893,7 @@ func _update_arrows(dt: float) -> void:
 					_hit(e, float(ar.get("dmg", 0.336)) * (0.6 if _cav(e["kind"]) else 1.0))
 					Sfx.at("oq_odam", ar["to"], world, -7.0, 0.1, 0.12)
 					hit_snd = true
-				elif e["alive"] and e["pos"].distance_to(ar["to"]) < 3.0 and (e["kind"] in ["nayzachi", "qilichboz"] or ef == "shield"):
+				elif e["alive"] and e["pos"].distance_to(ar["to"]) < 3.0 and (e["kind"] in ["nayzachi", "qilichboz"] or ef in ["shield", "toshbaqa"]):
 					# qalqonga / zirhga tegib qaytdi
 					Sfx.at("miltiq_tegish" if ar.has("dmg") else "qalqon", ar["to"], world, -9.0, 0.12, 0.12)
 					hit_snd = true

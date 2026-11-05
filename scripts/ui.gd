@@ -706,7 +706,7 @@ func _foreign_panel(id: String, p: Dictionary) -> void:
 			src = n
 	if src != "":
 		var atk := Button.new()
-		atk.text = ("HUJUM  (%s dan, kuch %d)" % [Game.provinces[src]["name"], roundi(best)]) if Game.era >= 4 else ("Yurish: %s qo'shini bilan bosib olish  (%d askar)" % [Game.provinces[src]["name"], roundi(Game.provinces[src]["units"].get("soldier", 0.0))])
+		atk.text = ("HUJUM  (%s dan, kuch %d)" % [Game.provinces[src]["name"], roundi(best)]) if Game.era >= 4 else ("Yurish: %s dan %d askar" % [Game.provinces[src]["name"], roundi(Game.provinces[src]["units"].get("soldier", 0.0))])
 		atk.icon = _army_icon()
 		atk.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		atk.custom_minimum_size = Vector2(0, 44)
