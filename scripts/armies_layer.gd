@@ -123,7 +123,7 @@ func _draw_sites(s: float) -> void:
 				lab += " | %dT" % roundi(u["tank"])
 			_txt(gp + Vector2(0, 14) * s, lab, s, Color("#ffd166"), 12)
 		# ochiq (postsiz) chegaralar - bosish mumkin bo'lgan belgilar
-		if z >= 1.3:
+		if z >= 1.3 and Game.era >= 4:
 			for n in p["neighbors"]:
 				if Game.provinces[n]["owner"] != Game.PLAYER and not Game.has_post(id, n, false):
 					var bp2 := Game.border_point(id, n)
@@ -213,8 +213,8 @@ func _overlay_draw(s: float, f: float) -> void:
 			var pp := Game.border_point(id, po["to"])
 			draw_line(c, pp, Color(0.13, 0.14, 0.16, 0.9), 3.5 * s)
 			draw_line(c, pp, Color(0.55, 0.5, 0.42, 1.0), 2.0 * s)
-		# postsiz chegaralar - bosiladigan belgilar
-		for n in p["neighbors"]:
+		# postsiz chegaralar - bosiladigan belgilar (faqat zamonaviy davrda; eski xaritada yo'q)
+		for n in (p["neighbors"] if Game.era >= 4 else []):
 			if Game.provinces[n]["owner"] != Game.PLAYER and not Game.has_post(id, n, false):
 				var bp2 := Game.border_point(id, n)
 				draw_set_transform(bp2, PI / 4, Vector2(s, s))

@@ -314,8 +314,11 @@ func _on_zoom_changed() -> void:
 		for l in border_lines:
 			l.width = 1.3 / z
 			l.default_color = Color(0.05, 0.06, 0.08, 0.28)
+			l.visible = Game.era >= 4       # eski xaritada davlat bitta butun hudud bo'lib ko'rinadi
 		for l in country_lines:
-			l.width = 3.4 / z
+			l.width = (4.2 if Game.era < 4 else 3.4) / z
+			if Game.era < 4:
+				l.default_color = Color(0.22, 0.12, 0.05, 0.95)     # to'q jigarrang siyoh chizig'i
 		for l in select_lines:
 			l.width = 5.0 / z
 		for id in labels:

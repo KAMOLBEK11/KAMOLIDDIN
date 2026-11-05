@@ -10,6 +10,7 @@ uniform vec4 geo = vec4(0.03251, 84.91, -0.02495, 39.98);
 uniform vec4 ov_rect = vec4(0.0, 0.0, 1.0, 1.0);
 uniform float ov_amount = 1.0;
 uniform float flatten = 0.0;
+uniform float antique = 0.0;
 
 void vertex() {
 	vec3 sph = CUSTOM0.xyz;
@@ -32,6 +33,18 @@ void fragment() {
 	if (ouv.x > 0.0 && ouv.x < 1.0 && ouv.y > 0.0 && ouv.y < 1.0) {
 		vec4 ov = texture(ov_tex, ouv);
 		c = mix(c, ov.rgb, clamp(ov.a * 1.6, 0.0, 0.9) * ov_amount);
+	}
+	if (antique > 0.0) {
+		// eski xarita: dengiz - xira yashil-ko'k siyoh, quruqlik - pergament
+		float lum = dot(c, vec3(0.3, 0.5, 0.2));
+		vec3 sea = vec3(0.55, 0.64, 0.6) * (0.9 + lum * 0.3);
+		vec3 land = vec3(0.86, 0.78, 0.6) * (0.75 + lum * 0.6);
+		vec3 ac = mix(land, sea, smoothstep(0.3, 0.6, water));
+		if (ouv.x > 0.0 && ouv.x < 1.0 && ouv.y > 0.0 && ouv.y < 1.0) {
+			vec4 ov2 = texture(ov_tex, ouv);
+			ac = mix(ac, ov2.rgb * ac * 1.4, clamp(ov2.a * 1.2, 0.0, 0.55) * ov_amount * (1.0 - smoothstep(0.3, 0.6, water)));
+		}
+		c = mix(c, ac, antique * flatten);
 	}
 	ALBEDO = c * 1.05;
 	ROUGHNESS = mix(0.85, 0.25, water);

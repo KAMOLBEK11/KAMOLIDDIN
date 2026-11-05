@@ -7,6 +7,7 @@ uniform sampler2D overlay : source_color, filter_linear;
 uniform sampler2D detail : filter_linear_mipmap, repeat_enable;
 uniform sampler2D detail_n : hint_normal, filter_linear_mipmap, repeat_enable;
 uniform float overlay_strength = 0.85;
+uniform float antique = 0.0;   // 1- va 2-zamon: eski qo'lyozma xarita (pergament, akvarel bo'yoq, siyoh chiziqlar)
 uniform float fade = 1.0;   // globusga o'tishda yer silliq yo'qoladi
 uniform float bend = 0.0;   // uzoqlashganda xarita Yer shari egriligiga moslashadi
 uniform vec2 bend_center = vec2(0.0);
@@ -85,10 +86,21 @@ void fragment() {
 	} else {
 		col = mix(base, ov.rgb, clamp(ov.a * overlay_strength, 0.0, 1.0));
 	}
+	if (antique > 0.0) {
+		float lum = dot(base, vec3(0.3, 0.5, 0.2));
+		vec3 parch = vec3(0.80, 0.71, 0.53) * (0.78 + lum * 0.5) * (0.93 + (n2 - 0.5) * 0.2 + (n - 0.5) * 0.06);
+		// davlat rangi - pergamentga surtilgan akvarel bo'yoq (har davlat o'z rangida aniq ko'rinadi)
+		vec3 tint = ov.rgb * vec3(1.0, 0.95, 0.8) * 0.85 + vec3(0.06, 0.05, 0.02);
+		vec3 wash = mix(parch, tint * (0.75 + lum * 0.4) * (0.95 + (n2 - 0.5) * 0.2), clamp(ov.a, 0.0, 1.0) * 0.82);
+		// tog'lar - jigarrang shtrix soya
+		float mnt = clamp(smoothstep(2.0, 7.0, vh) * 0.45 + smoothstep(0.2, 0.5, slope) * 0.3, 0.0, 0.6);
+		wash = mix(wash, vec3(0.42, 0.31, 0.2), mnt * (0.6 + 0.4 * step(0.5, fract((UV.x + UV.y) * 900.0))));
+		col = mix(col, wash, antique);
+	}
 	ALBEDO = col;
 	ROUGHNESS = 0.92 - smoothstep(6.5, 9.0, vh) * 0.4;
 	NORMAL_MAP = texture(detail_n, UV * 46.0).rgb;
 	NORMAL_MAP_DEPTH = 0.22;
 	// chegaralar va tanlangan viloyat chizig'i biroz porlaydi
-	EMISSION = ov.rgb * smoothstep(0.85, 1.0, ov.a) * 0.18;
+	EMISSION = ov.rgb * smoothstep(0.85, 1.0, ov.a) * 0.18 * (1.0 - antique);
 }

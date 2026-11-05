@@ -275,6 +275,7 @@ func _build_terrain() -> void:
 	var sm := ShaderMaterial.new()
 	sm.shader = load("res://shaders/terrain.gdshader")
 	sm.set_shader_parameter("overlay", ovp.get_texture())
+	sm.set_shader_parameter("antique", 1.0 if Game.era < 4 else 0.0)
 	var dt := NoiseTexture2D.new()
 	var dn := FastNoiseLite.new()
 	dn.frequency = 0.05
@@ -425,6 +426,7 @@ func _build_morph(B: Basis) -> void:
 	morph.mesh = am
 	morph_mat = ShaderMaterial.new()
 	morph_mat.shader = load("res://shaders/globe_morph.gdshader")
+	morph_mat.set_shader_parameter("antique", 1.0 if Game.era < 4 else 0.0)
 	morph_mat.set_shader_parameter("day_tex", load("res://pics/earth/earth_atmos_2048.jpg"))
 	morph_mat.set_shader_parameter("spec_tex", load("res://pics/earth/earth_specular_2048.jpg"))
 	morph_mat.set_shader_parameter("ov_tex", ovp.get_texture())
@@ -482,6 +484,10 @@ func _label(text: String, size: int, col: Color, pos: Vector3, pix := 0.04) -> L
 	l.outline_size = int(size / 4.0)
 	l.outline_modulate = Color(0, 0, 0, 0.85)
 	l.modulate = col
+	if Game.era < 4:
+		# eski qo'lyozma xarita: to'q siyoh harflar, pergament rangli hoshiya
+		l.modulate = Color(0.24, 0.13, 0.06) if col.v > 0.7 else col.darkened(0.3)
+		l.outline_modulate = Color(0.93, 0.86, 0.68, 0.75)
 	l.pixel_size = pix
 	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	l.no_depth_test = true
@@ -697,6 +703,19 @@ func _on_changed() -> void:
 				continue
 			var gp := mp + (Vector2(0, rad * 0.32) if st["type"] == "hq" else Vector2(0, 6))
 			_garrison(gp, u, gold)
+	# eski xaritada: davlatimiz poytaxtida yuklangan bayrog'imiz hilpirab turadi
+	if Game.era < 4 and not Game.player_provinces().is_empty():
+		var cap: String = Game.player_provinces()[0]
+		for id2 in Game.player_provinces():
+			if Game.provinces[id2]["population"] > Game.provinces[cap]["population"]:
+				cap = id2
+		var cc: Vector2 = Game.provinces[cap]["center"]
+		var std := Unit3D.standard(gold, 4.6)
+		var fsc := clampf(_prov_radius(cap) * K / AREA_R * 1.25, 0.003, 0.018) * 24.0
+		std.scale = Vector3.ONE * fsc
+		std.position = to3(cc + Vector2(_prov_radius(cap) * 0.22, -_prov_radius(cap) * 0.18))
+		std.set_meta("player_flag", true)
+		sites_root.add_child(std)
 	for pair in War.hostile_borders():
 		var ep: Vector2 = Game.border_point(pair[0], pair[1])
 		var em := _model("buildings/post", 1.5)
