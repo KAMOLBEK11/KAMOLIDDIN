@@ -98,6 +98,22 @@ FACTIONS = {
         'coat': '#d9cdb2', 'coat2': '#7a5a34', 'trouser': '#5a4a38', 'skin': '#b88660', 'boots': '#3a2618',
         'metal': '#9aa0a6', 'leather': '#6b4a2e', 'turban': '#f4f0e6', 'beard': '#1a1410', 'team': '#2f6b4a',
     },
+    'afrika': {  # Mali / Kanem-Bornu (XIV-XV asr): paxtali qavat sovut, teri qalqon, temir qalpoq
+        'coat': '#c9b48a', 'coat2': '#8a5a2e', 'trouser': '#d8cba8', 'skin': '#5a3826', 'boots': '#4a3020',
+        'metal': '#8a8f96', 'leather': '#7a5230', 'turban': '#efe6d0', 'beard': '#141010', 'team': '#b8862e', 'look': 'afrika',
+    },
+    'hind': {  # Rajputlar / Dehli (XIV-XV asr): kolchuga, za'faron salla, dhal qalqon, egri talvar
+        'coat': '#9aa0a6', 'coat2': '#c0392b', 'trouser': '#e8dcc0', 'skin': '#a8724e', 'boots': '#5a3a22',
+        'metal': '#a0a6ac', 'leather': '#6b4a2e', 'turban': '#e8901c', 'beard': '#141010', 'team': '#d35400', 'look': 'hind',
+    },
+    'yunon': {  # Yunon (Vizantiya) piyodasi: bronza dubulg'a va sovut, qizil plash, katta dumaloq qalqon
+        'coat': '#e8dcc0', 'coat2': '#a8282a', 'trouser': '#e8dcc0', 'skin': '#c99872', 'boots': '#6b4a2e',
+        'metal': '#b08a4a', 'leather': '#7a5230', 'turban': '#e8dcc0', 'beard': '#2a1e14', 'team': '#a8282a', 'look': 'yunon',
+    },
+    'angliya': {  # Winston (Angliya) qirolligi: gerbli ustko'ylak, kolchuga, uchburchak qalqon, uzun kamon
+        'coat': '#9aa0a6', 'coat2': '#2f6b3a', 'trouser': '#4a4a3a', 'skin': '#e0b08c', 'boots': '#3a2a1a',
+        'metal': '#aab0b6', 'leather': '#6b4a2e', 'turban': '#e8e2d0', 'beard': '#7a5a3a', 'team': '#b0242a', 'look': 'angliya',
+    },
     'ozbek': {  # 2-zamon (1850-1870) Buxoro/Xiva/Qo'qon askarlari: yo'l-yo'l to'n, salla yoki qora telpak
         'coat': '#5a2440', 'coat2': '#c9a03a', 'trouser': '#3a3530', 'skin': '#c8956c', 'boots': '#2e2018',
         'metal': '#9aa0a6', 'leather': '#5e4026', 'turban': '#ece6d6', 'beard': '#1e1712', 'team': '#2f7d4a',
@@ -177,7 +193,7 @@ def _tube(name, a, b, r, groups, verts=4):
     return ob
 
 
-def archery_rig(rig, Matrix):
+def archery_rig(rig, Matrix, half=0.55):
     """kamon tori va o'q.
     BowB - chap qo'lning bolasi, Copy Rotation bilan doim tik turadi (qorni nishonga, +X);
     tor uchlari BowB ga, o'rtasi 'Nock' suyagiga bog'langan. Otishda Nock o'ng qo'lga ergashadi (ta'siri kalitlangan);
@@ -197,8 +213,8 @@ def archery_rig(rig, Matrix):
     bb = rig.pose.bones['BowB']
     MAP = bb.bone.matrix_local @ bb.matrix.inverted()
     mid = bb.head + Vector((-0.055, 0, 0))
-    t1 = bb.head + Vector((-0.06, 0, 0.55))
-    t2 = bb.head + Vector((-0.06, 0, -0.55))
+    t1 = bb.head + Vector((-0.06, 0, half))
+    t2 = bb.head + Vector((-0.06, 0, -half))
     m_rest = MAP @ mid
     fwd = (MAP.to_3x3() @ Vector((1, 0, 0))).normalized()
     bpy.ops.object.mode_set(mode='EDIT')
@@ -254,6 +270,33 @@ def archery_rig(rig, Matrix):
     ab.scale = (1, 1, 1)
 
 
+def look_shield(look, sr, TEAM, MT, BRZ, GOLD, LT):
+    """xalqqa xos qalqon (bo'sh ro'yxat - odatiy dumaloq)"""
+    if look == 'yunon':      # aspis: katta botiq bronza qalqon, o'rtasi jamoa rangida
+        r = 0.44
+        return [cyl('ShieldDisk', r, 0.04, (0, 0, 0), TEAM, axis='X', verts=32),
+                cyl('ShieldRim', r + 0.02, 0.05, (0.006, 0, 0), BRZ, axis='X', verts=32),
+                sph('ShieldBoss', 0.12, (0.015, 0, 0), BRZ, (0.3, 1, 1))]
+    if look == 'afrika':     # cho'zinchoq teri (buyvol) qalqon
+        d = cyl('ShieldDisk', 0.3, 0.03, (0, 0, 0), LT, axis='X', verts=24)
+        d.scale = (1.0, 0.75, 1.35)
+        st = cyl('ShieldStripe', 0.04, 0.035, (0.004, 0, 0), TEAM, axis='X', verts=8)
+        st.scale = (1.0, 0.6, 9.0)
+        return [d, st, sph('ShieldBoss', 0.05, (0.02, 0, 0), MT, (0.6, 1, 1))]
+    if look == 'hind':       # dhal: kichik botiq po'lat qalqon, 4 oltin bo'rtma
+        sh = [cyl('ShieldDisk', 0.26, 0.03, (0, 0, 0), MT, axis='X', verts=28), cyl('ShieldRim', 0.27, 0.025, (0.004, 0, 0), GOLD, axis='X', verts=28)]
+        for k in range(4):
+            a = k * math.pi / 2 + math.pi / 4
+            sh.append(sph('Stud', 0.025, (0.02, math.cos(a) * 0.12, math.sin(a) * 0.12), GOLD, (0.6, 1, 1), 8, 6))
+        return sh
+    if look == 'angliya':    # uchburchak (kayt) qalqon, gerb rangida
+        pts = []
+        for x in (-0.015, 0.015):
+            pts += [(x, -0.24, 0.3), (x, 0.24, 0.3), (x, -0.25, 0.05), (x, 0.25, 0.05), (x, 0.0, -0.42)]
+        return [hull_points('ShieldDisk', pts, TEAM), box('ShieldBand', (0.035, 0.5, 0.06), (0.0, 0, 0.18), GOLD)]
+    return []
+
+
 def build_soldier(faction, kind):
     """kind: qilichboz | nayzachi | kamonchi | otliq"""
     clear()
@@ -261,10 +304,12 @@ def build_soldier(faction, kind):
     F = FACTIONS[faction]
     RUS = F.get('rus', False)
     XI = F.get('xitoy', False)
+    LOOK = F.get('look', '')
+    BRZ = mat('Bronze', '#b08a4a', 0.35, 0.85)
     E2K = (E2.get(kind) if faction == 'ozbek' else E2X.get(faction)) if F.get('era2') else None
     SHORT = bool(E2K and E2K.get('short'))
     RIFLE = E2K is not None and kind in RIFLE_KINDS
-    COAT = mat('Coat', F['coat'], 0.55, 0.55) if RUS else mat('Coat', F['coat'], 0.85)   # rus: tana = kolchuga
+    COAT = mat('Coat', F['coat'], 0.55, 0.55) if (RUS or LOOK in ('hind', 'angliya')) else mat('Coat', F['coat'], 0.85)   # rus/hind/angliya: tana = kolchuga
     COAT2 = mat('CoatTrim', F['coat2'], 0.85)
     TR = mat('Trouser', F['trouser'], 0.9)
     SK = mat('Skin', F['skin'], 0.6)
@@ -483,6 +528,61 @@ def build_soldier(faction, kind):
             for p_ in tp.data.polygons:
                 p_.use_smooth = False
             attach(tp, 'Head')
+    elif LOOK == 'yunon':
+        # korinf bronza dubulg'asi: yuzni yopuvchi yonoqliklar, tepada qizil tojsimon pat (krista)
+        attach(sph('Helmet', 0.13, (0.02, 0, HZ + 0.05), BRZ, (1.05, 1.0, 1.05), 18, 12), 'Head')
+        for s_ in (-1, 1):
+            attach(box('Cheek', (0.07, 0.025, 0.12), (0.1, s_ * 0.085, HZ - 0.04), BRZ), 'Head')
+        attach(box('NoseG', (0.02, 0.02, 0.08), (0.15, 0, HZ - 0.0), BRZ), 'Head')
+        crest = []
+        for k_ in range(9):
+            a_ = math.radians(-70 + k_ * 17.5)
+            crest.append(box('Crest', (0.07, 0.035, 0.09), (0.02 + math.sin(a_) * 0.14, 0, HZ + 0.12 + math.cos(a_) * 0.11), mat('Crest', '#b01e1e', 0.9)))
+        for c_ in crest:
+            attach(c_, 'Head')
+    elif LOOK == 'hind':
+        # za'faron salla ustida kichik nayzali dubulg'a (qilichboz/otliq), qolganlarda faqat salla
+        for k_, (rr, zz) in enumerate(((0.132, 0.045), (0.137, 0.09), (0.124, 0.13))):
+            tw = torus('Salla%d' % k_, rr, 0.04, (0.015, 0, HZ + zz), TU)
+            tw.rotation_euler = (0, math.radians(-8), 0)
+            attach(tw, 'Head')
+        if kind in ('qilichboz', 'otliq'):
+            attach(sph('Helmet', 0.11, (0.015, 0, HZ + 0.15), MT, (1.0, 1.0, 0.8), 16, 10), 'Head')
+            attach(cyl('HelmSpike', 0.008, 0.1, (0.015, 0, HZ + 0.26), GOLD, axis='Z', verts=6), 'Head')
+        else:
+            attach(sph('SallaTop', 0.11, (0.01, 0, HZ + 0.14), TU, (1.0, 1.0, 0.6)), 'Head')
+        attach(sph('Jewel', 0.018, (0.15, 0, HZ + 0.1), mat('Emerald', '#1a8a4a', 0.2, 0.3)), 'Head')
+    elif LOOK == 'afrika':
+        if kind == 'kamonchi':
+            # yengil paxta salla
+            for k_, (rr, zz) in enumerate(((0.128, 0.05), (0.13, 0.09))):
+                attach(torus('Wrap%d' % k_, rr, 0.036, (0.015, 0, HZ + zz), TU), 'Head')
+            attach(sph('WrapTop', 0.11, (0.01, 0, HZ + 0.12), TU, (1.0, 1.0, 0.55)), 'Head')
+        else:
+            # yumaloq temir qalpoq + bo'yinni yopuvchi qavat paxta
+            attach(sph('Helmet', 0.125, (0.02, 0, HZ + 0.06), MT, (1.0, 1.0, 0.9), 16, 10), 'Head')
+            attach(cyl('HelmSpike', 0.01, 0.06, (0.02, 0, HZ + 0.2), MT, axis='Z', verts=6), 'Head')
+            ap = []
+            for k in range(9):
+                ang = math.radians(75 + k * 26.25)
+                for zz, rr in ((HZ + 0.04, 0.13), (HZ - 0.14, 0.16)):
+                    ap.append((0.02 + math.cos(ang) * rr, math.sin(ang) * rr, zz))
+            attach(hull_points('Hood', ap, COAT), 'Head')
+    elif LOOK == 'angliya':
+        if kind == 'kamonchi':
+            # yashil kapyushon (uzun kamonchi)
+            attach(sph('Hood', 0.135, (0.0, 0, HZ + 0.04), COAT2, (1.0, 1.0, 1.05), 16, 10), 'Head')
+            attach(cone('HoodTip', 0.06, 0.01, 0.16, (-0.1, 0, HZ + 0.08), COAT2, verts=8), 'Head')
+        else:
+            # bascinet: yumaloq-uchli po'lat dubulg'a + kolchuga kapyushon
+            attach(cone('Helmet', 0.13, 0.03, 0.2, (0.0, 0, HZ + 0.12), MT, verts=18), 'Head')
+            attach(sph('HelmBowl', 0.128, (0.02, 0, HZ + 0.05), MT, (1.0, 1.0, 0.9), 16, 10), 'Head')
+            ap = []
+            for k in range(11):
+                ang = math.radians(62 + k * 23.6)
+                for zz, rr in ((HZ + 0.06, 0.13), (HZ - 0.08, 0.15), (HZ - 0.19, 0.2)):
+                    ap.append((0.02 + math.cos(ang) * rr, math.sin(ang) * rr, zz))
+            attach(hull_points('Coif', ap, COAT), 'Head')
     elif XI:
         # Min dubulg'asi: yumaloq kosa + gardish + tepada nayzacha va qizil popuk; yon-orqada matoli quloqchin
         attach(sph('Helmet', 0.128, (0.02, 0, HZ + 0.06), MT, (1.0, 1.0, 0.95), 16, 10), 'Head')
@@ -552,6 +652,30 @@ def build_soldier(faction, kind):
         attach(sk, None, skirt_w)
         attach(box('CoatFront', (0.02, 0.05, 0.58), (0.2, 0.0, 0.66), COAT2), None, skirt_w)
         attach(cone('Hem', 0.238, 0.236, 0.035, (0.0, 0, 0.385), COAT2, verts=36), None, skirt_w)
+    elif LOOK == 'yunon':
+        # pteruges: beldan osilgan charm/mato tasmalar (oq), ostida qisqa xiton
+        tu = cone('Chiton', 0.2, 0.18, 0.3, (0.0, 0, 0.8), COAT, verts=24)
+        tu.scale = (0.95, 1.08, 1.0)
+        attach(tu, None, skirt_w)
+        for k_ in range(14):
+            a_ = k_ / 14 * 2 * math.pi
+            attach(box('Pteryx', (0.02, 0.055, 0.22), (math.cos(a_) * 0.205, math.sin(a_) * 0.22, 0.82), LT if k_ % 2 else COAT, rot=(0, 0, a_)), None, skirt_w)
+    elif LOOK in ('hind', 'afrika'):
+        # uzun ko'ylak etagi (hind: qizil, afrika: qavat paxta)
+        sk = cone('Skirt', 0.22, 0.17, 0.5, (0.0, 0, 0.69), COAT2 if LOOK == 'hind' else COAT, verts=24)
+        sk.scale = (0.95, 1.08, 1.0)
+        attach(sk, None, skirt_w)
+        if LOOK == 'afrika':
+            for z_ in (0.55, 0.67, 0.79):
+                attach(cone('Quilt', 0.205 - (0.79 - z_) * 0.1, 0.2 - (0.79 - z_) * 0.1, 0.012, (0, 0, z_), COAT2, verts=24), None, skirt_w)
+    elif LOOK == 'angliya':
+        # gerbli ustko'ylak (surcoat) - jamoa rangida, ostida kolchuga etagi
+        ml = cone('MailSkirt', 0.215, 0.18, 0.36, (0.0, 0, 0.76), COAT, verts=24)
+        ml.scale = (0.95, 1.08, 1.0)
+        attach(ml, None, skirt_w)
+        sc_ = cone('Surcoat', 0.228, 0.2, 0.48, (0.0, 0, 0.72), COAT2 if kind == 'kamonchi' else TEAM, verts=24)
+        sc_.scale = (0.9, 1.1, 1.0)
+        attach(sc_, None, skirt_w)
     elif XI:
         # uzun brigandina etagi (tizzadan pastgacha), oldi ochiq - qora tagko'ylak ko'rinadi, oltin mix qatorlari
         sk = cone('Skirt', 0.22, 0.17, 0.5, (0.0, 0, 0.69), COAT, verts=18)
@@ -601,6 +725,31 @@ def build_soldier(faction, kind):
           hl = cyl('Hilt', 0.016, 0.13, (0.25, 0.25, 0.98), GOLD, axis='Z', verts=8)
           hl.rotation_euler = (0, math.radians(28), 0)
           attach(hl, 'Hips')
+    elif LOOK == 'yunon':
+      # bronza "muskul" sovut va orqada qizil plash
+      vest = hull_points('Cuirass', [(-0.11, -0.17, 0.98), (0.14, -0.16, 0.98), (-0.11, 0.17, 0.98), (0.14, 0.16, 0.98),
+                                     (-0.12, -0.18, 1.4), (0.15, -0.15, 1.38), (-0.12, 0.18, 1.4), (0.15, 0.15, 1.38), (0.17, 0, 1.2)], BRZ)
+      attach(vest, 'Chest')
+      attach(box('Cloak', (0.03, 0.36, 0.62), (-0.15, 0, 1.08), COAT2, rot=(0, math.radians(8), 0)), 'Chest')
+    elif LOOK == 'afrika':
+      vest = hull_points('Quilted', [(-0.1, -0.17, 1.0), (0.14, -0.16, 1.0), (-0.1, 0.17, 1.0), (0.14, 0.16, 1.0),
+                                     (-0.11, -0.18, 1.38), (0.14, -0.15, 1.36), (-0.11, 0.18, 1.38), (0.14, 0.15, 1.36)], COAT)
+      attach(vest, 'Chest')
+      for k in range(6):
+        attach(box('QuiltRow', (0.006, 0.32, 0.012), (0.148, 0, 1.04 + k * 0.06), COAT2), 'Chest')
+    elif LOOK == 'hind':
+      vest = hull_points('Mail', [(-0.1, -0.16, 1.0), (0.13, -0.15, 1.0), (-0.1, 0.16, 1.0), (0.13, 0.15, 1.0),
+                                  (-0.11, -0.17, 1.38), (0.13, -0.14, 1.36), (-0.11, 0.17, 1.38), (0.13, 0.14, 1.36)], MT)
+      attach(vest, 'Chest')
+      attach(box('Sash2', (0.02, 0.06, 0.5), (0.13, 0.0, 1.2), GOLD, rot=(math.radians(35), 0, 0)), 'Chest')
+    elif LOOK == 'angliya':
+      vest = hull_points('SurcoatTop', [(-0.11, -0.17, 1.0), (0.14, -0.16, 1.0), (-0.11, 0.17, 1.0), (0.14, 0.16, 1.0),
+                                        (-0.12, -0.17, 1.37), (0.14, -0.14, 1.35), (-0.12, 0.17, 1.37), (0.14, 0.14, 1.35)], COAT2 if kind == 'kamonchi' else TEAM)
+      attach(vest, 'Chest')
+      if kind != 'kamonchi':
+        # gerb: oltin sher o'rniga oltin bo'rtma va ikki chiziq
+        attach(box('Arms', (0.008, 0.11, 0.13), (0.15, 0, 1.2), GOLD), 'Chest')
+        attach(box('ArmsBar', (0.009, 0.15, 0.025), (0.152, 0, 1.2), TEAM), 'Chest')
     elif XI:
       vest = hull_points('Brigandine', [(-0.1, -0.16, 1.0), (0.13, -0.15, 1.0), (-0.1, 0.16, 1.0), (0.13, 0.15, 1.0),
                                         (-0.11, -0.17, 1.38), (0.13, -0.14, 1.36), (-0.11, 0.17, 1.38), (0.13, 0.14, 1.36)], COAT)
@@ -638,8 +787,12 @@ def build_soldier(faction, kind):
         for i in range(n + 1):
             t = i / n
             z = 0.06 + t * 0.78
-            x = 0.0 if RUS else (0.045 if XI else 0.09) * t * t      # oldinga egilish (rus qilichi to'g'ri, dao sal egri)
-            w = (0.024 * (1 - t) + 0.016 if t < 0.9 else 0.006) if RUS else (0.034 * (1 - t) + 0.006 if t < 0.92 else 0.004)
+            STR_ = RUS or LOOK in ('angliya', 'afrika', 'yunon')
+            x = 0.0 if STR_ else (0.045 if XI else (0.16 if LOOK == 'hind' else 0.09)) * t * t      # rus/ingliz qilichi to'g'ri, hind talvari kuchli egri
+            w = (0.024 * (1 - t) + 0.016 if t < 0.9 else 0.006) if STR_ else (0.034 * (1 - t) + 0.006 if t < 0.92 else 0.004)
+            if LOOK == 'yunon':
+                z = 0.06 + t * 0.55             # kalta ksifos
+                w = 0.03 * math.sin(math.pi * (0.25 + t * 0.6)) + 0.012 if t < 0.92 else 0.004
             rows.append([bmb.verts.new((x - w * 0.2, -0.004, z)), bmb.verts.new((x + w, 0.0, z)),
                          bmb.verts.new((x - w * 0.2, 0.004, z))])
         for i in range(n):
@@ -649,7 +802,7 @@ def build_soldier(faction, kind):
         bmb.faces.new(rows[-1][::-1])
         bmb.faces.new(rows[0])
         blade = [_obj_from_bm('Blade', bmb, MT)]
-        blade.append(box('Guard', (0.03, 0.2 if RUS else 0.12, 0.022), (0, 0, 0.03), GOLD))
+        blade.append(box('Guard', (0.03, 0.22 if (RUS or LOOK == 'angliya') else 0.12, 0.022), (0, 0, 0.03), GOLD if LOOK != 'angliya' else MT))
         blade.append(cyl('Grip', 0.017, 0.12, (0, 0, -0.04), LT, axis='Z', verts=8))
         blade.append(sph('Pommel', 0.022, (0, 0, -0.11), GOLD, segs=8, rings=6))
         sword = join('Sword', blade, origin=(0, 0, 0))
@@ -676,7 +829,7 @@ def build_soldier(faction, kind):
                 sh.append(sph('ShieldBoss', 0.1, (0.03, 0, 0), TEAM, (0.35, 1, 1)))
                 shield = join('Shield', sh, origin=(0, 0, 0))
                 weapon_parts.append((shield, 'ForeArm.L', 'shield'))
-            sh = [cyl('ShieldDisk', sr, 0.03, (0, 0, 0), TEAM, axis='X', verts=24),
+            sh = look_shield(LOOK, sr, TEAM, MT, BRZ, GOLD, LT) or [cyl('ShieldDisk', sr, 0.03, (0, 0, 0), TEAM, axis='X', verts=24),
                   cyl('ShieldRim', sr + 0.01, 0.02, (0.005, 0, 0), MT, axis='X', verts=24),
                   sph('ShieldBoss', 0.07, (0.02, 0, 0), MT, (0.6, 1, 1))]
             if not XI:
@@ -692,9 +845,9 @@ def build_soldier(faction, kind):
         sp[1].rotation_euler = (0, math.radians(90), 0)
         spear = join('Spear', sp, origin=(0, 0, 0))
         weapon_parts.append((spear, 'Hand.R', 'spear'))
-        sh = [] if E2K else [cyl('ShieldDisk', 0.28, 0.03, (0, 0, 0), TEAM, axis='X', verts=24),
+        sh = [] if E2K else (look_shield(LOOK, 0.28, TEAM, MT, BRZ, GOLD, LT) or [cyl('ShieldDisk', 0.28, 0.03, (0, 0, 0), TEAM, axis='X', verts=24),
               cyl('ShieldRim', 0.29, 0.02, (0.005, 0, 0), MT, axis='X', verts=24),
-              sph('ShieldBoss', 0.065, (0.02, 0, 0), MT, (0.6, 1, 1))]
+              sph('ShieldBoss', 0.065, (0.02, 0, 0), MT, (0.6, 1, 1))])
         if sh:
             shield = join('Shield', sh, origin=(0, 0, 0))
             weapon_parts.append((shield, 'ForeArm.L', 'shield'))
@@ -738,6 +891,10 @@ def build_soldier(faction, kind):
         bmw.faces.new(rows[0]); bmw.faces.new(rows[-1][::-1])
         bp = [_obj_from_bm('BowLimb', bmw, LT)]
         bow = join('Bow', bp, origin=(0, 0, 0))
+        if LOOK == 'angliya':
+            bow.scale = (0.8, 1.0, 1.55)       # ingliz uzun kamoni (odam bo'yiday)
+            bpy.context.view_layer.objects.active = bow
+            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
         weapon_parts.append((bow, 'Hand.L', 'bow'))
         qv = [cyl('Quiver', 0.06, 0.5, (0, 0, 0), LT, axis='Z', verts=10)]
         for k in range(5):
@@ -1101,11 +1258,12 @@ def build_soldier(faction, kind):
         ob.matrix_world = mw
 
     if kind == 'kamonchi':
-        archery_rig(rig, Matrix)
+        archery_rig(rig, Matrix, 0.55 * (1.55 if LOOK == 'angliya' else 1.0))
     rig.animation_data.action = bpy.data.actions['Idle']
     bpy.data.actions.remove(grip_act)
     name = '%s_%s' % (faction, kind)
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(TMP, name + '.blend'))
+    smooth_all(45.0)
     bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, name + '.glb'), export_format='GLB', export_yup=True,
                               export_animations=True, export_animation_mode='ACTIONS', export_force_sampling=True,
                               export_apply=False)
@@ -1150,7 +1308,7 @@ def preview(rig, name, acts):
 
 
 FAC = 'osiyo'
-for f_ in ('rus2', 'ingliz', 'yevropa2', 'usmonli', 'xitoy2', 'rus', 'xitoy', 'ozbek', 'arabi'):
+for f_ in ('rus2', 'ingliz', 'yevropa2', 'usmonli', 'xitoy2', 'rus', 'xitoy', 'ozbek', 'arabi', 'afrika', 'hind', 'yunon', 'angliya'):
     if f_ in ARGS:
         FAC = f_
         break

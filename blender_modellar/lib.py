@@ -131,7 +131,23 @@ def parent(child, par):
     child.matrix_world = mw
 
 
+def smooth_all(angle=38.0):
+    """yumshatish: hamma meshlarda silliq soya; o'tkir qirralar (burchak > angle) saqlanadi.
+    Shar, silindr, gumbaz, odam tanasi silliq ko'rinadi; quti va devor qirralari tik qoladi."""
+    import math as _m
+    for ob in bpy.data.objects:
+        if ob.type != 'MESH':
+            continue
+        me = ob.data
+        for poly in me.polygons:
+            poly.use_smooth = True
+        if hasattr(me, 'use_auto_smooth'):
+            me.use_auto_smooth = True
+            me.auto_smooth_angle = _m.radians(angle)
+
+
 def export(path_noext):
+    smooth_all()
     bpy.ops.wm.save_as_mainfile(filepath=path_noext + '.blend')
     bpy.ops.export_scene.gltf(filepath=path_noext + '.glb', export_format='GLB', export_apply=True,
                               export_yup=True)

@@ -43,6 +43,9 @@ def M():
         'yevropa': {'roof': '#a8553a', 'roof2': '#3d4654', 'trim': '#3a2a1c', 'wall': '#8e8b84', 'accent': '#2e4f8a'},
         'xitoy': {'roof': '#2d3138', 'roof2': '#c9a23a', 'trim': '#9a2a22', 'wall': '#7f7c74', 'accent': '#c43a2a'},
         'arab': {'roof': '#bb9c70', 'roof2': '#2e7a8a', 'trim': '#e6d3b0', 'wall': '#d3b48a', 'accent': '#2e7a8a'},
+        'afrika': {'roof': '#c8a85a', 'roof2': '#a8823e', 'trim': '#6b4a2a', 'wall': '#a8703e', 'accent': '#b8862e'},
+        'hind': {'roof': '#e8e2d6', 'roof2': '#c9a03a', 'trim': '#efe6d6', 'wall': '#b5543a', 'accent': '#d35400'},
+        'yunon': {'roof': '#b5523a', 'roof2': '#d8cfbc', 'trim': '#efe9dc', 'wall': '#e2d9c6', 'accent': '#2e4f8a'},
     }[STYLE]
     for k, v in pal.items():
         m[k] = mat(k.capitalize(), v, 0.8)
@@ -229,8 +232,301 @@ def sph_(name, r, loc, mt):
 
 # ================================================================== BINOLAR
 
+NEW = ('afrika', 'hind', 'yunon')
+
+
+def thatch_cone(name, r, h, loc, m):
+    return cyl(name, r, h, loc, m['roof'], axis='Z', verts=16, r2=0.05)
+
+
+def round_hut(m, x, y, r=1.8, h=2.2):
+    """afrikacha dumaloq loy uy, konus somon tom"""
+    out = [cyl('HutWall', r, h, (x, y, h / 2), m['wall'], axis='Z', verts=16)]
+    out.append(thatch_cone('HutRoof', r + 0.5, h * 0.9, (x, y, h + h * 0.45), m))
+    out.append(box('HutDoor', (0.2, 0.7, 1.4), (x + r - 0.05, y, 0.7), m['dark']))
+    return out
+
+
+def tiles(m, sx, sy, h, loc, along='X'):
+    """yunoncha terrakota cherepitsa tom (qatorlari bilan)"""
+    out = [gable('Roof', sx, sy, h, loc, m['roof'], 0.5, along=along)]
+    return out
+
+
+def colonnade(m, x0, x1, y, z, h, n, r=0.22, mt=None):
+    out = []
+    for i in range(n):
+        x = x0 + i * (x1 - x0) / max(1, n - 1)
+        out.append(cyl('Col', r, h, (x, y, z + h / 2), mt or m['trim'], axis='Z', verts=12, r2=r * 0.85))
+    return out
+
+
+def chhatri_b(m, x, y, z, r=0.8):
+    out = [box('ChBase', (r * 2.1, r * 2.1, 0.2), (x, y, z + 0.1), m['trim'])]
+    for a in (-1, 1):
+        for b in (-1, 1):
+            out.append(cyl('ChCol', 0.07, 0.9, (x + a * r * 0.8, y + b * r * 0.8, z + 0.65), m['trim'], axis='Z', verts=6))
+    out.append(box('ChEave', (r * 2.3, r * 2.3, 0.15), (x, y, z + 1.15), m['trim']))
+    out.append(dome('ChDome', r * 0.9, (x, y, z + 1.22), m['roof'], 1.05))
+    return out
+
+
+def nb_barracks(m):
+    p = []
+    if STYLE == 'afrika':
+        # loy devorli hovli va ichida somon tomli uzun bino (qalqonlar devorda)
+        p.append(box('Hall', (14, 5, 3.0), (0, 2.0, 1.5), m['wall']))
+        p.append(gable('Roof', 14, 5, 2.4, (0, 2.0, 3.0), m['roof'], 0.7))
+        for s_ in (-1, 1):
+            p.append(box('Wall', (0.5, 8.5, 1.6), (s_ * 7.8, 0, 0.8), m['wall']))
+        p.append(box('FrontWall', (5.0, 0.5, 1.6), (-5.3, -4.0, 0.8), m['wall']))
+        p.append(box('FrontWall2', (5.0, 0.5, 1.6), (5.3, -4.0, 0.8), m['wall']))
+        for k in range(5):
+            o = cyl('Shield', 0.45, 0.06, (-5 + k * 2.5, -0.45, 1.6), m['accent'], axis='Y', verts=12)
+            o.scale = (0.75, 1, 1.25)
+            p.append(o)
+        p.append(box('Door', (1.6, 0.2, 2.2), (0, -0.45, 1.1), m['dark']))
+    elif STYLE == 'hind':
+        # ikki qavatli oq bino, yog'och ayvon (jharokha) va ichki hovli
+        p.append(box('Ground', (16, 8, 3.4), (0, 0, 1.7), m['trim']))
+        p.append(box('Upper', (16, 6, 3.0), (0, 1.0, 4.9), m['trim']))
+        p.append(box('Balcony', (14, 1.6, 0.25), (0, -2.6, 3.5), m['dark']))
+        p += colonnade(m, -6.5, 6.5, -3.3, 3.6, 2.6, 8, 0.12, mat('WoodB', '#6e4a2c', 0.8))
+        p.append(box('BalRoof', (14.4, 2.0, 0.2), (0, -2.6, 6.2), mat('WoodB', '#6e4a2c', 0.8)))
+        for k in range(6):
+            p.append(box('Arch', (1.4, 0.15, 2.2), (-6.0 + k * 2.4, -4.05, 1.4), m['dark']))
+        p += chhatri_b(m, -6.5, 2.5, 6.4)
+        p += chhatri_b(m, 6.5, 2.5, 6.4)
+    else:
+        # stoa: ustunli galereya, terrakota tom, orqada yotoqxona
+        p.append(box('Podium', (16.4, 8.4, 0.5), (0, 0, 0.25), m['trim']))
+        p.append(box('Back', (16, 4.4, 4.2), (0, 1.8, 2.6), m['wall']))
+        p += colonnade(m, -7.4, 7.4, -3.4, 0.5, 4.0, 10, 0.26)
+        p.append(box('Entab', (16, 8, 0.6), (0, 0, 4.8), m['trim']))
+        p += tiles(m, 16, 8, 2.0, (0, 0, 5.1))
+        p.append(hull_points('Pedim', [(a * 8.0, -4.0, 5.1) for a in (-1, 1)] + [(a * 8.0, 4.0, 5.1) for a in (-1, 1)] + [(-8.0, 0, 7.0), (8.0, 0, 7.0)], m['trim']))
+    return p
+
+
+def nb_granary(m):
+    p = []
+    if STYLE == 'afrika':
+        for k, (x, y) in enumerate(((-2.5, -1.5), (0.5, 1.8), (3.0, -1.2))):
+            p.append(cyl('Stilt', 1.5, 0.6, (x, y, 0.3), m['trim'], axis='Z', verts=10))
+            p.append(cyl('Silo', 1.3, 2.4, (x, y, 1.8), m['wall'], axis='Z', verts=16, r2=1.1))
+            p.append(thatch_cone('Cap', 1.6, 1.5, (x, y, 3.75), m))
+    elif STYLE == 'hind':
+        p.append(box('Body', (10, 8, 4.0), (0, 0, 2.0), m['wall']))
+        p.append(box('Parapet', (10.2, 8.2, 0.5), (0, 0, 4.25), m['trim']))
+        p.append(box('Door', (2.0, 0.2, 2.6), (0, -4.05, 1.3), m['dark']))
+        p += chhatri_b(m, 0, 0, 4.5, 1.0)
+    else:
+        p.append(box('Body', (10, 8, 3.8), (0, 0, 1.9), m['wall']))
+        p += tiles(m, 10, 8, 2.0, (0, 0, 3.8))
+        p.append(box('Door', (2.2, 0.2, 2.6), (0, -4.05, 1.3), m['wood2']))
+        for k in range(4):
+            p.append(cyl('Amphora', 0.25, 0.8, (-3 + k * 0.7, -4.8, 0.4), m['roof'], axis='Z', verts=10, r2=0.12))
+    return p
+
+
+def nb_well(m):
+    p = [cyl('Ring', 1.0, 0.9, (0, 0, 0.45), m['wall'] if STYLE != 'yunon' else m['trim'], axis='Z', verts=16),
+         cyl('Water', 0.8, 0.05, (0, 0, 0.88), m['water'], axis='Z', verts=12)]
+    if STYLE == 'hind':
+        p += chhatri_b(m, 0, 0, 0.9, 1.0)
+    elif STYLE == 'yunon':
+        for a in (-1, 1):
+            p.append(cyl('Col', 0.12, 2.2, (a * 1.0, 0, 1.1), m['trim'], axis='Z', verts=10))
+        p.append(box('Beam', (2.4, 0.25, 0.25), (0, 0, 2.3), m['trim']))
+    else:
+        for a in (-1, 1):
+            p.append(box('Fork', (0.2, 0.2, 2.2), (a * 1.0, 0, 1.1), m['wood2']))
+        p.append(box('Beam', (2.4, 0.2, 0.2), (0, 0, 2.2), m['wood2']))
+        p.append(cyl('Gourd', 0.25, 0.4, (0.5, -1.2, 0.2), m['roof2'], axis='Z', verts=10))
+    return p
+
+
+def nb_smithy(m):
+    p = []
+    if STYLE == 'afrika':
+        p += round_hut(m, -1.0, 0.5, 2.6, 2.6)
+        p.append(box('Shade', (3.0, 2.4, 0.12), (2.4, -2.0, 2.3), m['roof']))
+        for a in (-1, 1):
+            p.append(box('Post', (0.15, 0.15, 2.3), (2.4 + a * 1.3, -3.0, 1.15), m['wood2']))
+    elif STYLE == 'hind':
+        p.append(box('Body', (8, 6, 3.4), (0, 0, 1.7), m['wall']))
+        p.append(box('Parapet', (8.2, 6.2, 0.4), (0, 0, 3.6), m['trim']))
+        p.append(box('Open', (3.0, 0.2, 2.4), (-0.5, -3.05, 1.2), m['dark']))
+        p += chimney(m, 2.6, 1.6, 3.4, 2.0, m['wall'])
+    else:
+        p.append(box('Body', (8, 6, 3.4), (0, 0, 1.7), m['wall']))
+        p += tiles(m, 8, 6, 1.6, (0, 0, 3.4))
+        p.append(box('Open', (3.0, 0.2, 2.4), (-0.5, -3.05, 1.2), m['dark']))
+        p += chimney(m, 2.6, 1.6, 3.4, 2.4, m['wall'])
+    p.append(box('Anvil', (0.8, 0.4, 0.8), (1.4, -4.3, 0.4), m['iron']))
+    p.append(cyl('Forge', 0.6, 0.6, (-1.6, -4.2, 0.3), m['stone'], axis='Z', verts=10))
+    p.append(box('Embers', (0.8, 0.8, 0.05), (-1.6, -4.2, 0.62), mat('Ember', '#ff6a20', 0.6, 0, 3.0)))
+    return p
+
+
+def nb_stable(m):
+    p = [box('Back', (14, 0.8, 3.0), (0, 3.4, 1.5), m['wall'])]
+    if STYLE == 'afrika':
+        for k in range(6):
+            p.append(box('Post', (0.2, 0.2, 2.8), (-6.5 + k * 2.6, -3.4, 1.4), m['wood2']))
+        p.append(gable('Roof', 14, 7.6, 1.6, (0, 0, 2.9), m['roof'], 0.5))
+    elif STYLE == 'hind':
+        for k in range(7):
+            p.append(arch_open(m, -6.0 + k * 2.0, -3.6, 0, 1.5, 2.6, 0.5, mt=m['wall']))
+        p.append(box('Roof', (14.4, 8, 0.4), (0, 0, 3.1), m['trim']))
+        for k in range(8):
+            p.append(box('Pillar', (0.5, 0.5, 3.0), (-7.0 + k * 2.0, -3.6, 1.5), m['wall']))
+    else:
+        p += colonnade(m, -6.6, 6.6, -3.4, 0, 3.0, 7, 0.2)
+        p += tiles(m, 14, 7.6, 1.6, (0, 0, 3.0))
+    for k in range(5):
+        p.append(box('Stall', (0.12, 5.0, 1.2), (-5.2 + k * 2.6, 0.5, 0.6), m['wood']))
+    p.append(box('Trough', (10, 0.6, 0.6), (0, 2.6, 0.3), m['wood2']))
+    return p
+
+
+def nb_farm(m):
+    crop = mat('Millet', '#b89a48', 0.9) if STYLE == 'afrika' else m['wheat']
+    p = [box('Field', (20, 14, 0.15), (0, 0, 0.08), m['soil'])]
+    for k in range(9):
+        p.append(box('Row', (19, 0.8, 0.9 if STYLE == 'afrika' else 0.7), (0, -6 + k * 1.5, 0.5), crop))
+    if STYLE == 'afrika':
+        p += round_hut(m, 12.5, 4.0, 1.8, 2.2)
+        p += tree(m, 12.0, -3.0, 6.0, 2.6)      # baobab o'rniga keng daraxt
+    elif STYLE == 'hind':
+        p.append(box('House', (4, 3.4, 2.6), (12.5, 4.0, 1.3), m['wall']))
+        p.append(box('HRoof', (4.4, 3.8, 0.3), (12.5, 4.0, 2.75), m['trim']))
+        p += tree(m, 12.5, -3.0, 5.0, 2.0)
+    else:
+        p.append(box('House', (4, 3.4, 2.6), (12.5, 4.0, 1.3), m['wall']))
+        p += tiles(m, 4, 3.4, 1.2, (12.5, 4.0, 2.6))
+        for k in range(4):
+            p += tree(m, 10.5 + (k % 2) * 2.5, -4.5 + (k // 2) * 2.6, 3.2, 1.0)      # zaytun daraxtlari
+    return p
+
+
+def nb_lumber(m):
+    p = [box('Yard', (12, 10, 0.15), (0, 0, 0.08), m['dirt'])]
+    for a in (-1, 1):
+        for b in (-1, 1):
+            p.append(box('Post', (0.25, 0.25, 2.8), (-2 + a * 2.6, 3 + b * 1.6, 1.4), m['wood2']))
+    if STYLE == 'yunon':
+        p += tiles(m, 5.4, 3.4, 1.0, (-2, 3, 2.8))
+    else:
+        p.append(gable('Shed', 5.4, 3.4, 1.2, (-2, 3, 2.8), m['roof'], 0.3))
+    for k in range(6):
+        p.append(cyl('Log', 0.35, 5.0, (2.5, -3 + (k % 3) * 0.75, 0.35 + (k // 3) * 0.6), m['log'], axis='X', verts=10))
+    p += tree(m, 4.5, 3.5, 6.0, 1.8)
+    return p
+
+
+def nb_quarry(m):
+    rock = m['wall'] if STYLE != 'yunon' else m['trim']      # yunon: oq marmar
+    p = [box('Pit', (14, 12, 0.15), (0, 0, 0.08), m['gravel'])]
+    random.seed(3)
+    for k in range(7):
+        r = random.uniform(1.2, 2.6)
+        p.append(hull_points('Rock', [(random.uniform(-5, 5) + dx * r, 3.5 + random.uniform(-1, 2) + dy * r, dz * r * 1.4)
+                                      for dx, dy, dz in ((-1, -1, 0), (1, -1, 0), (-1, 1, 0), (1, 1, 0), (0, 0, 1), (0.4, -0.3, 0.8))], rock))
+    for k in range(8):
+        p.append(box('Block', (1.2, 0.8, 0.7), (-4 + (k % 4) * 1.5, -3.5 + (k // 4) * 1.0, 0.35), rock))
+    p.append(box('Cart', (2.2, 1.4, 0.9), (4, -3.5, 0.8), m['wood']))
+    return p
+
+
+def nb_market(m):
+    p = [box('Plaza', (16, 12, 0.15), (0, 0, 0.08), m['stone'] if STYLE != 'afrika' else m['dirt'])]
+    if STYLE == 'afrika':
+        for k in range(4):
+            x, y = -5 + (k % 2) * 6, -3 + (k // 2) * 5
+            for a in (-1, 1):
+                for b in (-1, 1):
+                    p.append(box('Pole', (0.12, 0.12, 2.2), (x + a * 1.2, y + b * 0.9, 1.1), m['wood2']))
+            p.append(box('Thatch', (3.0, 2.4, 0.2), (x, y, 2.3), m['roof']))
+            for j in range(3):
+                p.append(cyl('Pot', 0.25, 0.5, (x - 0.6 + j * 0.6, y, 0.25), m['wall'], axis='Z', verts=10, r2=0.18))
+        p += round_hut(m, 5.5, 3.5, 1.6, 2.0)
+    elif STYLE == 'hind':
+        p += stalls(m, 4, -3.5, 0, 'flat')
+        p += chhatri_b(m, 4.5, 1.0, 0.0, 1.6)
+    else:
+        # agora: stoa va o'rtada haykal ustuni
+        p += colonnade(m, -7, 7, 4.5, 0.1, 3.4, 8, 0.22)
+        p += tiles(m, 15, 2.6, 1.0, (0, 4.5, 3.5))
+        p += stalls(m, 2, -3.5, -1, 'flat')
+        p.append(cyl('Statue', 0.5, 3.0, (4.5, -1.0, 1.5), m['trim'], axis='Z', verts=12))
+    return p
+
+
+def nb_mint(m):
+    p = []
+    if STYLE == 'afrika':
+        p.append(hull_points('Body', [(a * 5.4, b * 5.4, 0) for a in (-1, 1) for b in (-1, 1)] + [(a * 4.8, b * 4.8, 5.0) for a in (-1, 1) for b in (-1, 1)], m['wall']))
+        for a in (-1, 1):
+            for b in (-1, 1):
+                p.append(pyramid('Pin', 0.9, 0.9, 1.8, (a * 4.3, b * 4.3, 5.0), m['wall'], 0.12))
+        for zz in (1.8, 3.4):
+            for k in range(4):
+                p.append(box('Toron', (0.12, 0.7, 0.12), (-3 + k * 2, -5.3 + zz * 0.06, zz), m['wood2']))
+        p.append(box('Door', (1.6, 0.2, 2.6), (0, -5.25, 1.3), m['dark']))
+    elif STYLE == 'hind':
+        p.append(box('Body', (10, 10, 5), (0, 0, 2.5), m['wall']))
+        p.append(box('Band', (10.2, 10.2, 0.4), (0, 0, 5.2), m['trim']))
+        p.append(dome('Dome', 2.8, (0, 0, 5.4), m['roof'], 1.1))
+        for a in (-1, 1):
+            for b in (-1, 1):
+                p += chhatri_b(m, a * 3.8, b * 3.8, 5.4, 0.7)
+        p.append(arch_open(m, 0, -5.05, 0, 2.2, 3.6, 0.2, mt=m['dark']))
+    else:
+        # kichik ibodatxona-xazina (thesauros): 4 ustun, fronton
+        p.append(box('Podium', (10.5, 10.5, 0.8), (0, 0, 0.4), m['trim']))
+        p.append(box('Cella', (8, 7, 4.6), (0, 1.0, 3.1), m['wall']))
+        p += colonnade(m, -3.6, 3.6, -4.3, 0.8, 4.6, 4, 0.32)
+        p.append(box('Entab', (10, 10, 0.6), (0, 0, 5.7), m['trim']))
+        p += tiles(m, 10, 10, 2.0, (0, 0, 6.0), along='Y')
+        p.append(hull_points('Pedim', [(a * 5.0, -5.05, 6.0) for a in (-1, 1)] + [(0, -5.05, 8.0), (0, -4.9, 8.0)] + [(a * 5.0, -4.9, 6.0) for a in (-1, 1)], m['trim']))
+    return p
+
+
+def nb_house(m):
+    p = []
+    if STYLE == 'afrika':
+        p += round_hut(m, -1.0, 0.0, 2.0, 2.4)
+        p += round_hut(m, 2.0, 1.8, 1.2, 1.8)
+        p.append(box('Fence', (5.6, 0.2, 1.0), (0.4, -2.8, 0.5), m['roof']))
+    elif STYLE == 'hind':
+        # haveli: qizil uy, tekis tom, ustida kichik chhatri, panjarali deraza
+        p.append(box('Body', (5.4, 5.0, 4.0), (0, 0, 2.0), m['wall']))
+        p.append(box('Parapet', (5.6, 5.2, 0.4), (0, 0, 4.2), m['trim']))
+        p.append(box('Jali', (1.2, 0.15, 1.0), (1.2, -2.55, 2.6), m['trim']))
+        p.append(arch_open(m, -1.2, -2.55, 0, 1.0, 2.2, 0.2, mt=m['wood2']))
+        p += chhatri_b(m, 1.2, 1.2, 4.4, 0.7)
+    else:
+        # oq devorli uy, terrakota tom, kichik ayvon
+        p.append(box('Body', (5.4, 5.0, 3.0), (0, 0.4, 1.5), m['wall']))
+        p += tiles(m, 5.4, 5.0, 1.6, (0, 0.4, 3.0))
+        p += colonnade(m, -2.2, 2.2, -2.6, 0, 2.4, 3, 0.14)
+        p.append(box('Porch', (5.4, 1.6, 0.15), (0, -2.4, 2.45), m['roof']))
+        p.append(box('Door', (1.0, 0.2, 1.9), (0, -2.15, 0.95), m['wood2']))
+        p.append(cyl('Amphora', 0.25, 0.8, (2.4, -2.9, 0.4), m['roof'], axis='Z', verts=10, r2=0.12))
+    return p
+
+
+NEW_B = {'barracks': nb_barracks, 'granary': nb_granary, 'well': nb_well, 'smithy': nb_smithy, 'stable': nb_stable, 'farm': nb_farm,
+         'lumber': nb_lumber, 'quarry': nb_quarry, 'market': nb_market, 'mint': nb_mint, 'house': nb_house}
+
+
 def barracks():
     clear(); m = M(); p = []
+    if STYLE in NEW:
+        p = NEW_B['barracks'](m)
+        join('Barracks', p, origin=(0, 0, 0)); exp('barracks')
+        return
     if STYLE == 'rus':
         p += [box('Found', (16.6, 8.6, 0.6), (0, 0, 0.3), m['stone'])]
         p += log_walls(m, 16, 8, 4.6, z0=0.6)
@@ -287,6 +583,10 @@ def barracks():
 
 def granary():
     clear(); m = M(); p = []
+    if STYLE in NEW:
+        p = NEW_B['granary'](m)
+        join('Granary', p, origin=(0, 0, 0)); exp('granary')
+        return
     if STYLE == 'rus':
         # ambar: yog'och ustunlar ustida xodali ombor
         for a in (-1, 1):
@@ -324,6 +624,10 @@ def granary():
 
 def well():
     clear(); m = M(); p = []
+    if STYLE in NEW:
+        p = NEW_B['well'](m)
+        join('Well', p, origin=(0, 0, 0)); exp('well')
+        return
     if STYLE == 'rus':
         p += log_walls(m, 1.8, 1.8, 0.9)
         for a in (-1, 1):
@@ -358,6 +662,10 @@ def well():
 
 def smithy():
     clear(); m = M(); p = []
+    if STYLE in NEW:
+        p = NEW_B['smithy'](m)
+        join('Smithy', p, origin=(0, 0, 0)); exp('smithy')
+        return
     if STYLE == 'rus':
         p += log_walls(m, 8, 6, 3.2)
         p.append(gable('Roof', 8, 6, 2.4, (0, 0, 3.2), m['roof'], 0.5))
@@ -390,6 +698,10 @@ def smithy():
 
 def stable():
     clear(); m = M(); p = []
+    if STYLE in NEW:
+        p = NEW_B['stable'](m)
+        join('Stable', p, origin=(0, 0, 0)); exp('stable')
+        return
     if STYLE == 'rus':
         p += log_walls(m, 14, 1.0, 3.0, cy=3.3)
         p.append(gable('Roof', 14, 8, 2.4, (0, 0, 3.2), m['roof'], 0.4))
@@ -428,6 +740,10 @@ def stable():
 
 def farm():
     clear(); m = M(); p = []
+    if STYLE in NEW:
+        p = NEW_B['farm'](m)
+        join('Farm', p, origin=(0, 0, 0)); exp('farm')
+        return
     if STYLE == 'xitoy':
         # sholipoya: suvli kataklar va yashil maysalar
         p.append(box('Field', (20, 14, 0.12), (0, 0, 0.06), m['water']))
@@ -467,6 +783,10 @@ def farm():
 
 def lumber():
     clear(); m = M(); p = []
+    if STYLE in NEW:
+        p = NEW_B['lumber'](m)
+        join('Lumber', p, origin=(0, 0, 0)); exp('lumber')
+        return
     p.append(box('Yard', (12, 10, 0.15), (0, 0, 0.08), m['dirt']))
     roof_m = m['roof']
     if STYLE == 'xitoy':
@@ -495,6 +815,10 @@ def lumber():
 
 def quarry():
     clear(); m = M(); p = []
+    if STYLE in NEW:
+        p = NEW_B['quarry'](m)
+        join('Quarry', p, origin=(0, 0, 0)); exp('quarry')
+        return
     rock = m['wall'] if STYLE == 'arab' else m['rock']
     p.append(box('Pit', (14, 12, 0.15), (0, 0, 0.08), m['gravel']))
     random.seed(3)
@@ -515,6 +839,10 @@ def quarry():
 
 def market():
     clear(); m = M(); p = []
+    if STYLE in NEW:
+        p = NEW_B['market'](m)
+        join('Market', p, origin=(0, 0, 0)); exp('market')
+        return
     p.append(box('Plaza', (16, 12, 0.15), (0, 0, 0.08), m['stone'] if STYLE != 'arab' else m['wall']))
     if STYLE == 'rus':
         p += stalls(m, 4, -3.5, 0, 'gable')
@@ -549,6 +877,10 @@ def market():
 
 def mint():
     clear(); m = M(); p = []
+    if STYLE in NEW:
+        p = NEW_B['mint'](m)
+        join('Mint', p, origin=(0, 0, 0)); exp('mint')
+        return
     if STYLE == 'rus':
         # g'isht xazina: qizil g'isht, oq bezak, yashil chodir tom
         p.append(box('Body', (10, 10, 5), (0, 0, 2.5), m['wall']))
@@ -588,6 +920,10 @@ def mint():
 
 def house():
     clear(); m = M(); p = []
+    if STYLE in NEW:
+        p = NEW_B['house'](m)
+        join('House', p, origin=(0, 0, 0)); exp('house')
+        return
     if STYLE == 'rus':
         p += log_walls(m, 5.4, 5.0, 3.0)
         p.append(gable('Roof', 5.4, 5.0, 2.6, (0, 0, 3.0), m['roof'], 0.5, along='Y'))

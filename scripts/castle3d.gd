@@ -1776,8 +1776,11 @@ func _build_army_cards() -> void:
 	_gear_btn.focus_mode = Control.FOCUS_NONE
 	var fac := Unit3D.faction_for(_p()["country"])
 	var col := Color(Game.countries[_p()["country"]]["color"]) if Game.countries.has(_p()["country"]) else Color("#2f7d4a")
+	var bst := Unit3D.building_style(_p()["country"])
 	for k in CastleEco.units():
 		var u: Dictionary = CastleEco.units()[k]
+		if u.has("only") and not (bst in u["only"]):
+			continue
 		var pc := PanelContainer.new()
 		pc.add_theme_stylebox_override("panel", UIKit.style(Color(0.09, 0.065, 0.045, 0.75), 5, Color(0.55, 0.4, 0.2, 0.7), 4))
 		army_box.add_child(pc)
@@ -1849,7 +1852,7 @@ func _show_army() -> void:
 	for k in _army_cards:
 		var u: Dictionary = CastleEco.units()[k]
 		var c: Dictionary = _army_cards[k]
-		(c["count"] as Label).text = "Qal'ada: %d" % int(data["army"][k])
+		(c["count"] as Label).text = "Qal'ada: %d" % int(data["army"].get(k, 0))
 		(c["cost"] as Label).text = "%d oltin, %d oziq, %d kun  (%s)" % [CastleEco.unit_cost(p, k), u["food"], u["days"],
 			CastleEco.NEED_NAMES.get(u["needs"], u["needs"])]
 		for n in c["btns"]:
@@ -1892,7 +1895,7 @@ func _show_army() -> void:
 func _food_per_day() -> float:
 	var e := 0.0
 	for k in data["army"]:
-		e += float(data["army"][k]) * CastleEco.EAT * (2.0 if k == "otliq" else 1.0)
+		e += float(data["army"][k]) * CastleEco.EAT * {"otliq": 2.0, "fil": 6.0, "arava": 3.0}.get(k, 1.0)
 	return e
 
 
@@ -1967,7 +1970,7 @@ func _refresh_army(force := false) -> void:
 		total += int(a[k])
 	var per := maxi(1, int(ceil(float(total) / MAX_FIG)))
 	var want := {}
-	for k in (["nayzachi", "sarboz", "top", "otliq"] if Game.era == 2 else ["nayzachi", "qilichboz", "kamonchi", "otliq"]):
+	for k in (["nayzachi", "sarboz", "top", "otliq"] if Game.era == 2 else ["nayzachi", "qilichboz", "kamonchi", "otliq", "fil", "arava"]):
 		want[k] = int(ceil(float(a.get(k, 0)) / per))
 	var changed := force
 	for k in want:
@@ -1993,7 +1996,7 @@ func _refresh_army(force := false) -> void:
 	var fwd := _muster_dir()
 	var face := atan2(-fwd.z, fwd.x)
 	var i := 0
-	for k in (["otliq", "top", "sarboz", "nayzachi"] if Game.era == 2 else ["otliq", "kamonchi", "qilichboz", "nayzachi"]):
+	for k in (["otliq", "top", "sarboz", "nayzachi"] if Game.era == 2 else ["fil", "arava", "otliq", "kamonchi", "qilichboz", "nayzachi"]):
 		# har tur yangi qatordan boshlanadi - alohida bo'linmalar ko'rinadi
 		if i % (ROW_W + 1) != 0:
 			i += (ROW_W + 1) - i % (ROW_W + 1)
@@ -2003,7 +2006,7 @@ func _refresh_army(force := false) -> void:
 			node.set_meta("slot", target)
 			node.set_meta("row", i / (ROW_W + 1))
 			node.set_meta("kind", k)
-			i += 3 if k == "top" else (2 if k == "otliq" else 1)
+			i += 3 if k in ["top", "fil", "arava"] else (2 if k == "otliq" else 1)
 			if _initial or not node.get_meta("new", false) and node.position.distance_to(target) < 0.3:
 				node.position = target
 				node.rotation.y = face

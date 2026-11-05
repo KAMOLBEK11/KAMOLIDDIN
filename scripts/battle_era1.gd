@@ -13,7 +13,7 @@ const GW := 120
 const GH := 80
 const MAX_FIGS := 110
 const REG_SIZE := 14
-const KIND_ORDER1 := ["nayzachi", "qilichboz", "kamonchi", "otliq"]
+const KIND_ORDER1 := ["nayzachi", "qilichboz", "kamonchi", "otliq", "fil", "arava"]
 const KIND_ORDER2 := ["nayzachi", "sarboz", "top", "otliq"]
 ## 2-zamon: sarboz - fitilli miltiq (uzoq masofa, sekin o'qlash, nayza-shtik bilan yaqin jang); to'p - zambarak
 const STAT2 := {
@@ -22,6 +22,8 @@ const STAT2 := {
 		"bullet": 0.6, "chance": 0.27, "fire": "Fire"},
 	"top": {"hp": 3.5, "dmg": 0.0, "reach": 1.5, "speed": 1.4, "cd": 3.0, "vs_cav": 1.0, "range": 260.0, "shot": 8.5, "cannon": true},
 	"otliq": {"hp": 1.7, "dmg": 0.42, "reach": 2.4, "speed": 8.5, "cd": 1.1, "vs_cav": 1.0},
+	"fil": {"hp": 9.0, "dmg": 0.9, "reach": 3.4, "speed": 4.2, "cd": 1.6, "vs_cav": 2.0, "splash": 2.8},
+	"arava": {"hp": 2.4, "dmg": 0.5, "reach": 2.6, "speed": 9.5, "cd": 1.1, "vs_cav": 1.0},
 }
 const NAMES2 := {"nayzachi": "Nayzachilar", "sarboz": "Sarbozlar", "top": "To'plar", "otliq": "Otliqlar"}
 var KIND_ORDER: Array = KIND_ORDER2 if Game.era == 2 else KIND_ORDER1
@@ -32,12 +34,15 @@ const STAT1 := {
 	"qilichboz": {"hp": 1.15, "dmg": 0.34, "reach": 1.6, "speed": 3.4, "cd": 1.0, "vs_cav": 1.0},
 	"kamonchi": {"hp": 0.8, "dmg": 0.14, "reach": 1.6, "speed": 3.6, "cd": 1.2, "vs_cav": 1.0, "range": 78.0, "shot": 2.3},
 	"otliq": {"hp": 1.7, "dmg": 0.42, "reach": 2.4, "speed": 8.5, "cd": 1.1, "vs_cav": 1.0},
+	"fil": {"hp": 9.0, "dmg": 0.9, "reach": 3.4, "speed": 4.2, "cd": 1.6, "vs_cav": 2.0, "splash": 2.8},
+	"arava": {"hp": 2.4, "dmg": 0.5, "reach": 2.6, "speed": 9.5, "cd": 1.1, "vs_cav": 1.0},
 }
-const NAMES1 := {"nayzachi": "Nayzachilar", "qilichboz": "Qilichbozlar", "kamonchi": "Kamonchilar", "otliq": "Otliqlar"}
+const NAMES1 := {"nayzachi": "Nayzachilar", "qilichboz": "Qilichbozlar", "kamonchi": "Kamonchilar", "otliq": "Otliqlar", "fil": "Jangovar fillar", "arava": "Jangovar aravalar"}
 
 var army_id := -1
 var prov_id := ""
 var castle_country := ""
+var enemy_country := ""       # dushman xalqi (qo'shin tarkibi: fil, arava...)
 var attacker_country := ""     # qamal qurollari uslubi (hujumchi xalqi)
 var ladders: Array = []         # narvon/arqonlar: {node, spot, out, along, rope, alive, reg}      # qal'a egasi - qal'a uslubi shunga qarab (kreml, ritsar qal'asi, ...)
 var player_attacking := true
@@ -128,7 +133,12 @@ func _ranged(k: String) -> bool:
 	return STAT.has(k) and STAT[k].has("range")
 
 
-func _ratio(siege_def: bool, siege_att: bool) -> Dictionary:
+func _cav(k: String) -> bool:
+	## otliq kabi harakatlanadiganlar (ot, jangovar arava)
+	return k == "otliq" or k == "arava"
+
+
+func _ratio(siege_def: bool, siege_att: bool, country := "") -> Dictionary:
 	## AI qo'shini tarkibi
 	if Game.era == 2:
 		if siege_def:
@@ -136,11 +146,20 @@ func _ratio(siege_def: bool, siege_att: bool) -> Dictionary:
 		if siege_att:
 			return {"nayzachi": 0.3, "sarboz": 0.55, "top": 0.1, "otliq": 0.05}
 		return {"nayzachi": 0.25, "sarboz": 0.5, "top": 0.1, "otliq": 0.15}
+	var st := Unit3D.building_style(country if country != "" else enemy_country)
+	var base := {"nayzachi": 0.35, "qilichboz": 0.3, "kamonchi": 0.25, "otliq": 0.1}
 	if siege_def:
-		return {"nayzachi": 0.3, "qilichboz": 0.3, "kamonchi": 0.4, "otliq": 0.0}
-	if siege_att:
-		return {"nayzachi": 0.4, "qilichboz": 0.35, "kamonchi": 0.2, "otliq": 0.05}
-	return {"nayzachi": 0.35, "qilichboz": 0.3, "kamonchi": 0.25, "otliq": 0.1}
+		base = {"nayzachi": 0.3, "qilichboz": 0.3, "kamonchi": 0.4, "otliq": 0.0}
+	elif siege_att:
+		base = {"nayzachi": 0.4, "qilichboz": 0.35, "kamonchi": 0.2, "otliq": 0.05}
+	# Hindiston va Afrika - jangovar fillar, Yunon - jangovar aravalar
+	if st in ["hind", "afrika"] and not siege_def:
+		base["fil"] = 0.12
+		base["qilichboz"] -= 0.12
+	elif st == "yunon" and not siege_def and not siege_att:
+		base["arava"] = 0.1
+		base["otliq"] = 0.0
+	return base
 
 
 # ================================================================ tayyorlash
@@ -186,6 +205,7 @@ func setup(aid: int) -> void:
 			def_side = 0
 			att_side = 1
 	castle_country = (p["owner"] if Game.countries.has(p["owner"]) else p["country"]) if player_attacking else p["country"]
+	enemy_country = castle_country if player_attacking else str(a["owner"])
 	attacker_country = (Game.provinces[Game.player_provinces()[0]]["country"] if not Game.player_provinces().is_empty() else "TIM") if player_attacking else str(a["owner"])
 	if siege:
 		var hx: float = spec["hx"]
@@ -228,7 +248,11 @@ func _player_ratio() -> Dictionary:
 			sum[k] += eq
 			tot += eq
 	if tot < 1.0:
-		return _ratio(false, false)
+		var pc := ""
+		for id in Game.player_provinces():
+			pc = str(Game.provinces[id].get("country", ""))
+			break
+		return _ratio(false, false, pc)
 	for k in sum:
 		sum[k] /= tot
 	return sum
@@ -312,7 +336,9 @@ func _make_fig(reg: Dictionary) -> void:
 	world.add_child(node)
 	var disc := MeshInstance3D.new()
 	var cm := CylinderMesh.new()
-	cm.top_radius = 0.9 if k != "otliq" else 1.5
+	cm.top_radius = 0.9 if not _cav(k) else 1.5
+	if k == "fil":
+		cm.top_radius = 2.6
 	if k == "top":
 		cm.top_radius = 1.8
 	cm.bottom_radius = cm.top_radius
@@ -343,11 +369,11 @@ func _auto_deploy() -> void:
 		var west := (side == att_side) if siege else (side == 0)
 		var x_front := W * 0.22 if west else W * 0.78
 		var dir := 1.0 if west else -1.0
-		var lines := {"nayzachi": 0.0, "qilichboz": 0.0, "kamonchi": -22.0, "otliq": -14.0, "sarboz": 0.0, "top": -30.0}
+		var lines := {"nayzachi": 0.0, "qilichboz": 0.0, "kamonchi": -22.0, "otliq": -14.0, "arava": -14.0, "fil": 10.0, "sarboz": 0.0, "top": -30.0}
 		var placed := {"front": 0, "kamonchi": 0, "otliq": 0}
 		var fronts: Array = []
 		for r in regs:
-			if r["side"] == side and (r["kind"] in ["nayzachi", "qilichboz"] or (r["kind"] == "sarboz")):
+			if r["side"] == side and (r["kind"] in ["nayzachi", "qilichboz", "fil"] or (r["kind"] == "sarboz")):
 				fronts.append(r)
 		var nf := fronts.size()
 		for i in nf:
@@ -356,7 +382,7 @@ func _auto_deploy() -> void:
 		var archers: Array = regs.filter(func(r): return r["side"] == side and r["kind"] in ["kamonchi", "top"])
 		for i in archers.size():
 			archers[i]["anchor"] = Vector3(x_front + lines[archers[i]["kind"]] * dir, 0, H * 0.5 + (i - (archers.size() - 1) * 0.5) * 26.0)
-		var cav: Array = regs.filter(func(r): return r["side"] == side and r["kind"] == "otliq")
+		var cav: Array = regs.filter(func(r): return r["side"] == side and _cav(r["kind"]))
 		for i in cav.size():
 			var s := -1.0 if i % 2 == 0 else 1.0
 			cav[i]["anchor"] = Vector3(x_front + lines["otliq"] * dir, 0, H * 0.5 + s * (nf * 13.0 + 24.0 + (i / 2) * 22.0))
@@ -594,7 +620,7 @@ func _shout(k: String) -> void:
 			shield_t = 8.0
 			for r in near:
 				for fi in r["figs"]:
-					if figs[fi]["alive"] and not _ranged(figs[fi]["kind"]) and figs[fi]["kind"] != "otliq":
+					if figs[fi]["alive"] and not _ranged(figs[fi]["kind"]) and not _cav(figs[fi]["kind"]):
 						_anim(figs[fi], "Block", true)
 			tip_label.text = "\"QALQON!\" - 8 soniya zarbalar kuchsiz o'tadi."
 		"yomgir":
@@ -710,7 +736,7 @@ func _refresh_form_btns() -> void:
 func _slot(r: Dictionary, idx: int) -> Vector3:
 	var form: String = r.get("form", "")
 	var cols := 7 if form != "shield" else 9
-	var sp := 2.8 if r["kind"] == "otliq" else (4.5 if r["kind"] == "top" else 1.7)
+	var sp := 2.8 if _cav(r["kind"]) else (4.5 if r["kind"] == "top" else 1.7)
 	if form in ["shield", "brace"]:
 		sp = 1.05          # zich saf: qalqonlar bir-biriga tegib turadi
 	elif form == "loose":
@@ -1197,7 +1223,7 @@ func _ai_target(r: Dictionary) -> int:
 		if o["side"] == r["side"] or o["routed"] or _alive(o) == 0:
 			continue
 		var d := c.distance_to(_center(o))
-		if r["kind"] == "otliq" and _ranged(o["kind"]):
+		if _cav(r["kind"]) and _ranged(o["kind"]):
 			d *= 0.6
 		if d < bd:
 			bd = d
@@ -1231,7 +1257,7 @@ func _simulate(dt: float) -> void:
 			elif r["kind"] == "nayzachi" and not siege:
 				var cav_near := false
 				for o in regs:
-					if o["side"] == 0 and o["kind"] == "otliq" and not o["routed"] and _alive(o) > 0 and _center(o).distance_to(_center(r)) < 45.0:
+					if o["side"] == 0 and _cav(o["kind"]) and not o["routed"] and _alive(o) > 0 and _center(o).distance_to(_center(r)) < 45.0:
 						cav_near = true
 				r["form"] = "brace" if cav_near else ""
 	# o'q yomg'iri: har bo'linmaning umumiy "oting!" taymeri
@@ -1269,12 +1295,19 @@ func _simulate(dt: float) -> void:
 			var ex := -20.0 if f["side"] == 0 else W + 20.0
 			var goal := Vector3(ex, 0, f["pos"].z)
 			_move(f, goal, st["speed"] * 1.2, dt)
-			_anim(f, "Run" if f["kind"] != "otliq" else "Gallop")
+			_anim(f, "Run" if not _cav(f["kind"]) else "Gallop")
 			if absf(f["pos"].x - ex) < 4.0:
 				f["alive"] = false
 				f["escaped"] = true
 				node.visible = false
 			continue
+		if f["kind"] == "fil":
+			# havdadagi kamonchilar 55 m gacha o'q uzadi
+			f["cd2"] = f.get("cd2", 1.0) - dt
+			if f["cd2"] <= 0.0 and f["target"] >= 0 and figs[f["target"]]["alive"] and f["pos"].distance_to(figs[f["target"]]["pos"]) < 55.0:
+				f["cd2"] = 2.4 * _rng.randf_range(0.8, 1.2)
+				_shoot({"pos": f["pos"] + Vector3(0, 2.6, 0), "kind": "fil", "reg": f["reg"], "i": f["i"], "side": f["side"]}, figs[f["target"]])
+				Unit3D.howdah_shoot(f["node"])
 		if siege and _siege_fig(f, r, st, dt, re):
 			continue
 		if re or f["target"] < 0 or not figs[f["target"]]["alive"]:
@@ -1322,42 +1355,50 @@ func _simulate(dt: float) -> void:
 					pass     # nayza safi joyidan qo'zg'almaydi, dushmanni kutadi
 				elif d > st["reach"]:
 					_move(f, e["pos"], st["speed"], dt)
-					_anim(f, "Run" if f["kind"] != "otliq" else "Gallop")
+					_anim(f, "Run" if not _cav(f["kind"]) else "Gallop")
 					f["charge"] = f.get("charge", 0.0) + dt
 				else:
 					_face(f, e["pos"])
 					if f["cd"] <= 0.0:
 						f["cd"] = st["cd"] * _rng.randf_range(0.8, 1.25)
 						var dmg: float = st["dmg"]
-						if e["kind"] == "otliq":
+						if _cav(e["kind"]):
 							dmg *= st["vs_cav"]
 							if r.get("form", "") == "brace":
 								dmg *= 2.2      # nayzalar yerga tiralgan - otliq o'zi nayzaga uriladi
 						var er: Dictionary = regs[e["reg"]]
 						if er.get("form", "") == "shield":
 							dmg *= 0.6          # qalqon devori
-						if er.get("form", "") == "brace" and f["kind"] == "otliq":
+						if er.get("form", "") == "brace" and _cav(f["kind"]):
 							_hit(f, 0.25)       # otliq nayza safiga urilib o'zi yaralanadi
-						if f["kind"] == "otliq" and f.get("charge", 0.0) > 2.0:
+						if _cav(f["kind"]) and f.get("charge", 0.0) > 2.0:
 							dmg *= 2.2      # otliq zarbasi (chopib kelib urish)
 						if e["pos"].y > f["pos"].y + 2.0:
 							dmg *= 0.8      # tepaga hujum qiyin
 						f["charge"] = 0.0
+						if e["kind"] == "fil" and _cav(f["kind"]):
+							dmg *= 0.6      # otlar fildan hurkadi
 						_hit(e, dmg * _rng.randf_range(0.7, 1.3))
-						_anim(f, "Attack" if f["kind"] != "otliq" else "Idle", true)
-						if f["kind"] == "otliq":
+						if f["kind"] == "fil":
+							# fil oyog'i va xartumi bilan atrofdagilarni ham urib yiqitadi
+							for e2 in figs:
+								if e2["alive"] and e2["side"] != f["side"] and e2["i"] != e["i"] and e2["pos"].distance_to(e["pos"]) < float(st.get("splash", 2.5)):
+									_hit(e2, dmg * 0.55)
+							regs[e["reg"]]["morale"] -= 4.0
+						_anim(f, "Attack" if not _cav(f["kind"]) else "Idle", true)
+						if _cav(f["kind"]):
 							var rd := Unit3D.rider_of(node)
 							if rd:
 								Unit3D.play(rd, "RideAttack")
 					elif f["anim"] in ["Run", "Gallop", "Walk"]:
-						_anim(f, "Block" if f["kind"] != "otliq" else "Idle")
+						_anim(f, "Block" if not _cav(f["kind"]) else "Idle")
 				continue
 		# buyruq yo'q: o'z safidagi joyiga boradi
 		var idx: int = r["figs"].find(f["i"])
 		var slot := _slot(r, idx)
 		if Vector2(slot.x - f["pos"].x, slot.z - f["pos"].z).length() > 0.8:
 			_move(f, slot, st["speed"] * (0.6 if r["order"] == "hold" else 1.0) * (0.45 if r.get("form", "") == "shield" else 1.0), dt)
-			_anim(f, "Walk" if r["order"] != "move" or f["kind"] == "otliq" else "Run")
+			_anim(f, "Walk" if r["order"] != "move" or _cav(f["kind"]) else "Run")
 		else:
 			node.rotation.y = lerp_angle(node.rotation.y, r["face"], 0.1)
 			_anim(f, "Block" if r.get("form", "") in ["shield", "brace"] else "Idle")
@@ -1445,7 +1486,9 @@ func _separate() -> void:
 				continue
 			var dx: float = b["pos"].x - a["pos"].x
 			var dz: float = b["pos"].z - a["pos"].z
-			var r := 1.0 if a["kind"] != "otliq" and b["kind"] != "otliq" else 1.8
+			var r := 1.0 if not _cav(a["kind"]) and not _cav(b["kind"]) else 1.8
+			if a["kind"] == "fil" or b["kind"] == "fil":
+				r = 3.0
 			if a["kind"] == "top" or b["kind"] == "top":
 				r = 2.6
 			var d2 := dx * dx + dz * dz
@@ -1469,7 +1512,7 @@ func _hit(e: Dictionary, dmg: float) -> void:
 		dmg *= 0.6
 	e["hp"] -= dmg
 	if e["hp"] > 0.0:
-		if _rng.randf() < 0.3 and e["kind"] != "otliq":
+		if _rng.randf() < 0.3 and not _cav(e["kind"]):
 			_anim(e, "Hit", true)
 		return
 	e["alive"] = false
@@ -1480,8 +1523,8 @@ func _hit(e: Dictionary, dmg: float) -> void:
 		var nd: Node3D = e["node"]
 		var tw := nd.create_tween()
 		tw.tween_property(nd, "position:y", h_at(nd.position.x, nd.position.z), 0.6)
-	_anim(e, ("Death" if e["kind"] == "otliq" else ("Death1" if _rng.randf() < 0.5 else "Death2")), true)
-	if e["kind"] == "otliq":
+	_anim(e, ("Death" if _cav(e["kind"]) else ("Death1" if _rng.randf() < 0.5 else "Death2")), true)
+	if _cav(e["kind"]):
 		var rd := Unit3D.rider_of(e["node"])
 		if rd:
 			Unit3D.play(rd, "Death1")
@@ -1654,7 +1697,7 @@ func _update_arrows(dt: float) -> void:
 				if ar.has("shooter_gun"):
 					cover *= 1.0 + 0.15 * float(ar["shooter_gun"])
 				if e["alive"] and _rng.randf() < float(ar.get("chance", 0.36)) * cover:
-					_hit(e, float(ar.get("dmg", 0.336)) * (0.6 if e["kind"] == "otliq" else 1.0))
+					_hit(e, float(ar.get("dmg", 0.336)) * (0.6 if _cav(e["kind"]) else 1.0))
 			# yerga sanchilgan o'q bir oz turadi
 			node.get_tree().create_timer(4.0).timeout.connect(node.queue_free)
 
@@ -1684,8 +1727,11 @@ func _anim(f: Dictionary, a: String, restart := false) -> void:
 			tw0.tween_property(node, "rotation:x", 0.6, 0.6)
 			_smoke(node.position + Vector3(0, 1, 0), true)
 		return
+	if f["kind"] == "arava" or f["kind"] == "fil":
+		Unit3D.play(node, "Death1" if a.begins_with("Death") else a)
+		return
 	var name := a
-	if f["kind"] == "otliq":
+	if _cav(f["kind"]):
 		name = {"Run": "Gallop", "Walk": "Walk", "Attack": "Idle", "Block": "Idle", "Hit": "Idle"}.get(a, a)
 		var rd := Unit3D.rider_of(node)
 		if rd and a in ["Run", "Walk", "Idle", "Gallop"]:
@@ -1731,7 +1777,7 @@ func _check_end() -> void:
 	player_won = b == 0 and a > 0
 	_apply()
 	for f in figs:
-		if f["alive"] and f["side"] == (0 if player_won else 1) and f["kind"] != "otliq":
+		if f["alive"] and f["side"] == (0 if player_won else 1) and not _cav(f["kind"]):
 			_anim(f, "Cheer", true)
 	var p: Dictionary = Game.provinces[prov_id]
 	if player_won:
@@ -2624,7 +2670,7 @@ func _siege_fig(f: Dictionary, r: Dictionary, st: Dictionary, dt: float, re: boo
 						_move(f, foot2, st["speed"], dt)
 						_anim(f, "Run")
 						return true
-				_anim(f, "Block" if f["kind"] != "otliq" else "Idle")
+				_anim(f, "Block" if not _cav(f["kind"]) else "Idle")
 				return true
 			var best_op: Vector3 = ops[0]
 			for op in ops:
@@ -2635,7 +2681,7 @@ func _siege_fig(f: Dictionary, r: Dictionary, st: Dictionary, dt: float, re: boo
 			var approach := best_op + side_out
 			if Vector2(approach.x - f["pos"].x, approach.z - f["pos"].z).length() > 2.0 and Vector2(best_op.x - f["pos"].x, best_op.z - f["pos"].z).length() > 3.0:
 				_move(f, approach, st["speed"], dt)
-				_anim(f, "Run" if f["kind"] != "otliq" else "Gallop")
+				_anim(f, "Run" if not _cav(f["kind"]) else "Gallop")
 				return true
 			# himoyachilar tashqariga chiqmaydi - teshik/darvoza ichida saf tortib turadi
 			if f["side"] == def_side and _inside(f["pos"]):
@@ -2644,7 +2690,7 @@ func _siege_fig(f: Dictionary, r: Dictionary, st: Dictionary, dt: float, re: boo
 				return true
 			# teshikdan o'tish
 			_move(f, best_op - side_out, st["speed"], dt)
-			_anim(f, "Run" if f["kind"] != "otliq" else "Gallop")
+			_anim(f, "Run" if not _cav(f["kind"]) else "Gallop")
 			return true
 	return false
 

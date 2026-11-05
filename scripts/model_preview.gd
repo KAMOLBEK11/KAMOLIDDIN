@@ -149,7 +149,7 @@ class _UnitView extends SubViewportContainer:
 		# yer: kichik doira (soya uchun)
 		var g := MeshInstance3D.new()
 		var cm := CylinderMesh.new()
-		cm.top_radius = 0.9 if k != "otliq" and k != "top" else 1.8
+		cm.top_radius = {"otliq": 1.8, "top": 1.8, "fil": 3.0, "arava": 3.0}.get(k, 0.9)
 		cm.bottom_radius = cm.top_radius
 		cm.height = 0.04
 		g.mesh = cm
@@ -166,6 +166,10 @@ class _UnitView extends SubViewportContainer:
 			model = Unit3D.cavalry(faction, k, team)
 			cam.position = Vector3(4.6, 2.1, 2.9)
 			cam.look_at_from_position(cam.position, Vector3(0, 1.35, 0))
+		elif k == "fil" or k == "arava":
+			model = Unit3D.soldier(faction, k, team)
+			cam.position = Vector3(9.0, 4.4, 6.4) if k == "fil" else Vector3(7.0, 3.0, 5.0)
+			cam.look_at_from_position(cam.position, Vector3(0.3, 2.0 if k == "fil" else 0.9, 0))
 		elif k == "top":
 			model = Unit3D.cannon(team)
 			cam.position = Vector3(3.6, 2.0, 3.0)

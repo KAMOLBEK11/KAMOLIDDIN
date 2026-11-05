@@ -24,6 +24,8 @@ const UNITS1 := {
 	"nayzachi": {"name": "Nayzachi", "cost": 18, "food": 3, "days": 2, "needs": "barracks", "power": 0.9},
 	"kamonchi": {"name": "Kamonchi", "cost": 30, "food": 3, "days": 3, "needs": "barracks", "power": 1.1},
 	"otliq": {"name": "Otliq", "cost": 70, "food": 8, "days": 4, "needs": "stable", "power": 2.2},
+	"fil": {"name": "Jangovar fil", "cost": 240, "food": 20, "days": 8, "needs": "stable", "power": 7.0, "only": ["hind", "afrika"]},
+	"arava": {"name": "Jangovar arava", "cost": 120, "food": 9, "days": 5, "needs": "stable", "power": 3.2, "only": ["yunon"]},
 }
 ## 2-zamon (1865): miltiqli sarboz, nayzachi, otliq, to'p
 const UNITS2 := {
@@ -34,7 +36,7 @@ const UNITS2 := {
 }
 const NEED_NAMES := {"barracks": "kazarma", "stable": "otxona", "smithy": "temirchi (quyuvxona)"}
 ## 1 askar ekvivalenti (xarita urushidagi "soldier" soni, maosh va oziq uchun)
-const EQ := {"otliq": 2.0, "top": 4.0}
+const EQ := {"otliq": 2.0, "top": 4.0, "fil": 6.0, "arava": 3.0}
 
 
 static func units() -> Dictionary:
@@ -56,6 +58,9 @@ static func castle(p: Dictionary) -> Dictionary:
 			c["army"][k] = 0
 	if not c.has("queue"):
 		c["queue"] = []
+	for k in units():
+		if not c["army"].has(k):
+			c["army"][k] = 0
 	if not c.has("task"):
 		c["task"] = "dam"        # dam (dam olish), mashq, devor (devorni qo'riqlash), saf (saf mashqi)
 		c["drill"] = 0.0         # tayyorgarlik 0..100
@@ -212,6 +217,8 @@ static func unit_cost(p: Dictionary, kind: String) -> int:
 
 static func can_recruit(p: Dictionary, kind: String, n: int) -> String:
 	var u: Dictionary = units()[kind]
+	if u.has("only") and not (Unit3D.building_style(str(p.get("country", ""))) in u["only"]):
+		return "Bu qo'shin faqat %s madaniyatida" % ", ".join(PackedStringArray(u["only"]))
 	if count(p, u["needs"]) == 0:
 		return "Avval %s quring" % NEED_NAMES.get(u["needs"], u["needs"])
 	var c: Dictionary = castle(p)

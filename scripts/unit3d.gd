@@ -19,10 +19,16 @@ static func _scene(path: String) -> PackedScene:
 
 const GEMINI_SCALE := 0.86     # Gemini modellari ~2.1 m - bizning 1.8 m askarlarga moslash
 ## madaniyat -> askar modellari to'plami
-const CULTURE_FACTION := {"xitoy": "xitoy", "rus": "rus", "fransuz": "yevropa", "turk": "temur", "arab": "arab", "italyan": "italiya", "yunon": "italiya"}
+const CULTURE_FACTION := {"xitoy": "xitoy", "rus": "rus", "fransuz": "yevropa", "turk": "temur", "arab": "arab", "italyan": "italiya", "yunon": "yunon"}
+## yangi xalqlar (1400): Afrika (Mali, Kanem-Bornu...), Hindiston (Rajputlar, Dehli...), Angliya ("Winston" qirolligi uslubi)
+const AFRICA1 := ["BEN", "ETH", "KAN", "MAK", "MAL", "SWA", "ZIM"]
+const INDIA1 := ["DEL", "KAS", "ORI", "PAN", "SIN", "VIJ"]
+const ENGLAND1 := ["ENG", "SCO"]
+const AFRICA2 := ["SOK", "TUK", "WAD", "KAN", "ETH", "ZAN"]
+const INDIA2 := ["NEP"]
 ## G'arbiy va Markaziy Yevropa davlatlari (ma'lumotda "boshqa" madaniyatli) - Yevropa ritsarlari
 const EUROPE := ["ENG", "SCO", "CAS", "ARA", "NAV", "POR", "HRE", "HUN", "POL", "TEU", "KAL", "BOS", "MOL", "WAL"]
-const BLENDER_FACTIONS := ["osiyo", "rus", "xitoy", "arabi", "ozbek", "rus2", "ingliz", "yevropa2", "usmonli", "xitoy2"]   # o'zimiz Blender'da yasagan (+X ga qaragan, otda o'tira oladi)
+const BLENDER_FACTIONS := ["osiyo", "rus", "xitoy", "arabi", "afrika", "hind", "yunon", "angliya", "ozbek", "rus2", "ingliz", "yevropa2", "usmonli", "xitoy2"]   # o'zimiz Blender'da yasagan (+X ga qaragan, otda o'tira oladi)
 const ERA2_FACTIONS := ["ozbek", "rus2", "ingliz", "yevropa2", "usmonli", "xitoy2"]       # 1850-1880 askarlari models/era2 papkasida
 ## 2-zamon: madaniyat -> qo'shin modellari
 const CULTURE_FACTION2 := {"ozbek": "ozbek", "rus": "rus2", "ingliz": "ingliz", "yevropa": "yevropa2", "usmonli": "usmonli", "xitoy": "xitoy2", "boshqa": "usmonli"}
@@ -55,6 +61,10 @@ static func castle_style(country: String) -> String:
 		return "isl"
 	var cu: String = Game.countries[country].get("culture", "")
 	if Game.era == 2:
+		if country in AFRICA2:
+			return "afrika"
+		if country in INDIA2:
+			return "hind"
 		if cu in ["rus", "yevropa", "ingliz"]:
 			return "bastion"
 		if cu == "xitoy" or country in EAST_ASIA:
@@ -64,9 +74,15 @@ static func castle_style(country: String) -> String:
 		return "isl" if is_muslim(country) else "arab"
 	if cu == "rus":
 		return "rus"
+	if country in AFRICA1:
+		return "afrika"
+	if country in INDIA1:
+		return "hind"
+	if cu == "yunon":
+		return "yunon"
 	if cu == "xitoy" or country in EAST_ASIA:
 		return "xitoy" if country != "YUA" else "isl"
-	if cu in ["fransuz", "italyan", "yunon"] or country in EUROPE or country == "GEO":
+	if cu in ["fransuz", "italyan"] or country in EUROPE or country == "GEO":
 		return "yevropa"
 	if cu == "arab":
 		return "arab"
@@ -82,9 +98,15 @@ static func building_style(country: String) -> String:
 	var cu: String = Game.countries[country].get("culture", "")
 	if cu == "rus":
 		return "rus"
+	if country in AFRICA1 or country in AFRICA2:
+		return "afrika"
+	if country in INDIA1 or country in INDIA2:
+		return "hind"
+	if cu == "yunon" or country == "GRE":
+		return "yunon"
 	if cu == "xitoy" or country in EAST_ASIA:
 		return "xitoy" if country != "YUA" else "isl"
-	if cu in ["fransuz", "italyan", "yunon", "yevropa", "ingliz"] or country in EUROPE or country == "GEO":
+	if cu in ["fransuz", "italyan", "yevropa", "ingliz"] or country in EUROPE or country == "GEO":
 		return "yevropa"
 	if cu == "arab" or country in ["ARA", "EGY", "MOR", "OMA"]:
 		return "arab"
@@ -124,6 +146,12 @@ static func faction_for(country: String) -> String:
 		if Game.countries.has(country):
 			return CULTURE_FACTION2.get(Game.countries[country].get("culture", ""), "ozbek")
 		return "ozbek"
+	if country in ENGLAND1:
+		return "angliya"
+	if country in AFRICA1:
+		return "afrika"
+	if country in INDIA1:
+		return "hind"
 	if country in EUROPE:
 		return "yevropa"
 	if country in ["JAP", "DAI"]:
@@ -161,6 +189,10 @@ static func _model_path(faction: String, kind: String) -> String:
 static func soldier(faction: String, kind: String, team := Color("#2f7d4a"), knight := false) -> Node3D:
 	if kind == "top":
 		return cannon(team, faction)
+	if kind == "fil":
+		return fil(faction, team)
+	if kind == "arava":
+		return arava(faction, team)
 	var path := _model_path(faction, kind)
 	if faction == "yevropa" and kind == "qilichboz" and (knight or randf() < KNIGHT_SHARE):
 		path = "res://models/era1/yevropa_ritser.glb"
@@ -436,7 +468,8 @@ static func equip(n: Node3D, tier: int) -> void:
 const CAPARISON := {"temur": ["#1f4e8c", "#c9a03a"], "osiyo": ["#1f4e8c", "#c9a03a"], "arab": ["#e8e2d0", "#2f6b4a"], "arabi": ["#e8e2d0", "#2f6b4a"],
 	"rus": ["#9a2a24", "#c9a03a"], "xitoy": ["#c9a03a", "#9a2a22"], "yevropa": ["", "#f0ece0"], "italiya": ["", "#f0ece0"],
 	"ozbek": ["#8a2a3a", "#c9a03a"], "rus2": ["#1e2a4a", "#b03030"], "ingliz": ["#1e2340", "#b0242a"], "yevropa2": ["#2a3a6a", "#c9a03a"],
-	"usmonli": ["#9a2a24", "#e8d8a0"], "xitoy2": ["#c9a03a", "#2a3a7a"]}
+	"usmonli": ["#9a2a24", "#e8d8a0"], "xitoy2": ["#c9a03a", "#2a3a7a"],
+	"afrika": ["#c9b48a", "#8a3a1e"], "hind": ["#c0392b", "#d8b040"], "yunon": ["#a8282a", "#b08a4a"], "angliya": ["", "#d8b040"]}
 
 
 static func caparison(h: Node3D, faction: String, team: Color) -> void:
@@ -447,7 +480,7 @@ static func caparison(h: Node3D, faction: String, team: Color) -> void:
 	var main := _mat(team if cols[0] == "" else Color(cols[0]), 0.0, 0.9)
 	var trim := _mat(Color(cols[1]), 0.3 if cols[1] == "#c9a03a" else 0.0, 0.6)
 	var sp := sk.find_bone("Spine")
-	var full: bool = faction in ["temur", "osiyo", "arab", "arabi", "rus", "xitoy", "yevropa", "italiya"]     # 1400: uzun yopinchiq
+	var full: bool = faction in ["temur", "osiyo", "arab", "arabi", "rus", "xitoy", "yevropa", "italiya", "afrika", "hind", "yunon", "angliya"]     # 1400: uzun yopinchiq
 	var z0 := -0.72 if full else -0.38
 	var z1 := 0.62 if full else 0.28
 	var ytop := 1.6
@@ -557,7 +590,111 @@ static func _skeleton(n: Node) -> Skeleton3D:
 	return null
 
 
+static func _attach_at(sk: Skeleton3D, bone: String, child: Node3D, pos_skel: Vector3, yaw := 0.0) -> void:
+	var bi := sk.find_bone(bone)
+	if bi < 0:
+		return
+	var ba := BoneAttachment3D.new()
+	ba.bone_idx = bi
+	sk.add_child(ba)
+	var holder := Node3D.new()
+	ba.add_child(holder)
+	holder.add_child(child)
+	holder.transform = sk.get_bone_global_rest(bi).affine_inverse() * Transform3D(Basis(Vector3.UP, yaw), pos_skel)
+
+
+static func fil(faction: String, team: Color) -> Node3D:
+	## jangovar fil: havdada 2 kamonchi, bo'ynida filbon. Hind va Afrika uslubi
+	var st := "afrika" if faction == "afrika" else "hind"
+	var sc := _scene("res://models/beasts/fil_%s.glb" % st)
+	if sc == null:
+		return null
+	var root := Node3D.new()
+	var inst: Node3D = sc.instantiate()
+	root.add_child(inst)
+	recolor(root, team)
+	var ap := anim(inst)
+	if ap:
+		for a in ["Idle", "Walk", "Run"]:
+			if ap.has_animation(a):
+				ap.get_animation(a).loop_mode = Animation.LOOP_LINEAR
+		ap.play("Idle")
+	var sk := _skeleton(inst)
+	var archers: Array = []
+	if sk:
+		var mah := soldier(faction, "qilichboz", team)
+		if mah:
+			_attach_at(sk, "Mahout", mah, Vector3(1.1, 3.15 - 0.96 + RIDER_DROP, 0))
+			play(mah, "Ride")
+		for z in [-0.34, 0.34]:
+			var ar := soldier(faction, "kamonchi", team)
+			if ar:
+				# havda ichida, tizzagacha devor orqasida - yon tomonlarga qarab o'q uzadi
+				_attach_at(sk, "Howdah", ar, Vector3(-0.1 - z * 0.6, 3.05, z * 0.9), 0.0)
+				ar.scale = Vector3.ONE * 0.86
+				play(ar, "Block")
+				archers.append(ar)
+	root.set_meta("fil", true)
+	root.set_meta("crew", archers)
+	return root
+
+
+static func howdah_shoot(n: Node3D) -> void:
+	for ar in n.get_meta("crew", []):
+		if is_instance_valid(ar):
+			var ap := anim(ar)
+			if ap and ap.has_animation("Attack"):
+				ap.stop()
+				ap.play("Attack", 0.1)
+
+
+static func arava(faction: String, team: Color) -> Node3D:
+	## yunon jangovar aravasi: ikki ot, aravakash va nayzali jangchi
+	var sc := _scene("res://models/beasts/arava_yunon.glb")
+	if sc == null:
+		return null
+	var root := Node3D.new()
+	var inst: Node3D = sc.instantiate()
+	root.add_child(inst)
+	var horses: Array = []
+	for z in [-0.5, 0.5]:
+		var h := horse(team)
+		if h:
+			h.position = Vector3(2.35, 0, z)
+			h.scale = Vector3.ONE * 0.92
+			caparison(h, faction, team)
+			root.add_child(h)
+			horses.append(h)
+	var riders: Array = []
+	for pr in [["qilichboz", Vector3(0.15, 0.8, -0.25)], ["nayzachi", Vector3(-0.15, 0.8, 0.25)]]:
+		var s := soldier(faction, pr[0], team)
+		if s:
+			s.position = pr[1]
+			s.scale = Vector3.ONE * 0.95
+			root.add_child(s)
+			play(s, "Idle")
+			riders.append(s)
+	recolor(root, team)
+	root.set_meta("arava", true)
+	root.set_meta("horses", horses)
+	root.set_meta("riders", riders)
+	return root
+
+
 static func play(n: Node3D, a: String, speed := 1.0, blend := 0.2) -> void:
+	if n.has_meta("arava"):
+		var ha: String = {"Run": "Gallop", "Walk": "Walk", "Idle": "Idle", "Attack": "Gallop", "Death1": "Death", "Death2": "Death", "Block": "Idle", "Hit": "Idle"}.get(a, "Idle")
+		for h in n.get_meta("horses", []):
+			var hp := anim(h)
+			if hp and hp.has_animation(ha):
+				hp.play(ha, blend, speed)
+		var rs: Array = n.get_meta("riders", [])
+		for i in rs.size():
+			var ra := "Attack" if (a == "Attack" and i == 1) else ("Death1" if a.begins_with("Death") else ("Block" if a == "Run" and i == 1 else "Idle"))
+			var rp := anim(rs[i])
+			if rp and rp.has_animation(ra):
+				rp.play(ra, blend, speed)
+		return
 	var ap := anim(n)
 	if ap and ap.has_animation(a):
 		ap.play(a, blend, speed)

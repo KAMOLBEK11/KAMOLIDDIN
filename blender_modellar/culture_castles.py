@@ -42,11 +42,22 @@ def M():
         'yevropa': {'wall': '#8e8b84', 'wall2': '#73706a', 'trim': '#a8a49b', 'roof': '#3d4654', 'roof2': '#4b5666', 'base': '#6c6963'},
         'xitoy': {'wall': '#7f7c74', 'wall2': '#6a675f', 'trim': '#9a2a22', 'roof': '#2d3138', 'roof2': '#c9a23a', 'base': '#5f5c55'},
         'arab': {'wall': '#d3b48a', 'wall2': '#bb9c70', 'trim': '#e6d3b0', 'roof': '#2e7a8a', 'roof2': '#3fa0a8', 'base': '#a88f6c'},
+        'afrika': {'wall': '#a8703e', 'wall2': '#8a5a30', 'trim': '#6b4a2a', 'roof': '#c8a85a', 'roof2': '#e8dcc0', 'base': '#7a5232'},
+        'hind': {'wall': '#b5543a', 'wall2': '#94402c', 'trim': '#efe6d6', 'roof': '#e8e2d6', 'roof2': '#c9a03a', 'base': '#8a4a32'},
+        'yunon': {'wall': '#c8bfae', 'wall2': '#a89e8c', 'trim': '#efe9dc', 'roof': '#b5523a', 'roof2': '#d8cfbc', 'base': '#8f877a'},
         'bastion': {'wall': '#9b6a4c', 'wall2': '#7f5640', 'trim': '#d9d2c2', 'roof': '#3b6b4a', 'roof2': '#e2c25a', 'base': '#8a8478'},
     }[STYLE]
     for k, v in pal.items():
         base[k] = mat(k.capitalize(), v, 0.85 if 'roof' not in k else 0.6)
     return base
+
+
+def sph_(name, r, loc, m):
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=12, v_segments=8, radius=r)
+    o = _obj_from_bm(name, bm, m)
+    o.location = loc
+    return o
 
 
 def pyramid(name, sx, sy, h, loc, m, top=0.15):
@@ -177,11 +188,70 @@ def merl_ring_style(m, r, z, n, cx=0.0, cy=0.0):
     return out
 
 
+def merl_round(m, x0, x1, y, z, step=1.3):
+    """hindcha yumaloq tishlar (kangura)"""
+    out = []
+    n = max(1, int(round((x1 - x0) / step)))
+    for i in range(n):
+        x = x0 + (i + 0.5) * (x1 - x0) / n
+        out.append(box('M1', (0.8, 0.5, 0.6), (x, y, z + 0.3), m))
+        o = dome('M2', 0.4, (x, y, z + 0.6), m, 1.0)
+        o.scale = (1, 0.62, 1)
+        out.append(o)
+    return out
+
+
+def merl_pinnacle(m, x0, x1, y, z, step=1.6):
+    """afrikacha (Sahel) uchli loy tishlar"""
+    out = []
+    n = max(1, int(round((x1 - x0) / step)))
+    for i in range(n):
+        x = x0 + (i + 0.5) * (x1 - x0) / n
+        out.append(pyramid('Pin', 0.7, 0.5, 1.4, (x, y, z), m, 0.12))
+    return out
+
+
+def torons(m, x0, x1, y, z0, z1, step=1.0):
+    """Sahel loy devoridan chiqib turgan yog'och xodalar (toron)"""
+    out = []
+    zz = z0
+    row = 0
+    while zz < z1:
+        xx = x0 + (0.5 if row % 2 else 0.0)
+        while xx < x1:
+            out.append(box('Toron', (0.12, 0.6, 0.12), (xx, y, zz), M_WOOD[0]))
+            xx += step
+        zz += 1.4
+        row += 1
+    return out
+
+
+M_WOOD = []
+
+
+def chhatri(m, x, y, z, r=1.1):
+    """hindcha ustunli gumbazli ayvoncha"""
+    out = [box('ChBase', (r * 2.1, r * 2.1, 0.25), (x, y, z + 0.12), m['trim'])]
+    for a in (-1, 1):
+        for b in (-1, 1):
+            out.append(cyl('ChCol', 0.1, 1.3, (x + a * r * 0.8, y + b * r * 0.8, z + 0.9), m['trim'], axis='Z', verts=8))
+    out.append(box('ChEave', (r * 2.3, r * 2.3, 0.2), (x, y, z + 1.6), m['trim']))
+    out.append(dome('ChDome', r * 0.95, (x, y, z + 1.7), m['roof'], 1.05))
+    out.append(cyl('ChFin', 0.05, 0.6, (x, y, z + 2.9), m['roof2'], axis='Z', verts=6))
+    return out
+
+
 def merl_line_style(m, x0, x1, y, z):
+    if STYLE == 'hind':
+        return merl_round(m, x0, x1, y, z)
+    if STYLE == 'afrika':
+        return merl_pinnacle(m, x0, x1, y, z)
     if STYLE == 'rus':
         return merl_swallow(m, x0, x1, y, z)
     if STYLE == 'arab':
         return merl_step(m, x0, x1, y, z)
+    if STYLE == 'yunon':
+        return merl_rect(m, x0, x1, y, z, 1.5, 0.9, 1.0, 0.55)
     if STYLE == 'xitoy':
         return merl_rect(m, x0, x1, y, z, 1.6, 1.0, 0.9, 0.55)
     return merl_rect(m, x0, x1, y, z)
@@ -204,7 +274,7 @@ def wall():
         p.append(box('Embrasure', (0.8, 1.3, 0.6), (0, -WALL_T / 2 + 0.6, WALL_H + 0.95), m['dark']))
     else:
         tall = 1.0 if STYLE != 'xitoy' else 1.0
-        batter = 0.5 if STYLE in ('xitoy', 'arab') else 0.15
+        batter = 0.5 if STYLE in ('xitoy', 'arab') else (0.9 if STYLE == 'afrika' else 0.15)
         p.append(box('Base', (4.0, WALL_T + 0.8, 1.2), (0, 0, 0.6), m['base']))
         p.append(hull_points('Body', [(x, s * (WALL_T / 2 + batter), 1.2) for x in (-2, 2) for s in (-1, 1)] +
                              [(x, s * WALL_T / 2, WALL_H) for x in (-2, 2) for s in (-1, 1)], m['wall']))
@@ -220,6 +290,19 @@ def wall():
         if STYLE == 'xitoy':
             for k in range(5):
                 p.append(box('Course', (4.0, 0.05, 0.06), (0, -WALL_T / 2 - 0.4 + k * 0.08, 1.8 + k * 1.1), m['wall2']))
+        if STYLE == 'afrika':
+            M_WOOD[:] = [m['wood']]
+            p += torons(m, -1.8, 1.8, -WALL_T / 2 - 0.4, 2.0, WALL_H - 0.6)
+            p.append(box('Buttress', (0.9, 0.9, WALL_H + 0.6), (0, -WALL_T / 2 - 0.35, (WALL_H + 0.6) / 2), m['wall2']))
+        if STYLE == 'hind':
+            p.append(box('Band', (4.0, WALL_T + 0.1, 0.25), (0, 0, WALL_H - 1.2), m['trim']))
+            for x in (-1.0, 1.0):
+                p.append(box('Arch', (0.9, 0.1, 1.6), (x, -WALL_T / 2 - 0.02, 3.4), m['wall2']))
+        if STYLE == 'yunon':
+            for k in range(5):
+                p.append(box('Course', (4.0, 0.05, 0.05), (0, -WALL_T / 2 - 0.16, 1.5 + k * 1.1), m['wall2']))
+            for x in (-1.0, 1.0):
+                p.append(box('Joint', (0.05, 0.05, WALL_H - 1.2), (x, -WALL_T / 2 - 0.16, 1.2 + (WALL_H - 1.2) / 2), m['wall2']))
         if STYLE == 'arab':
             p.append(box('Band', (4.0, WALL_T + 0.1, 0.3), (0, 0, WALL_H - 0.6), m['wall2']))
             p.append(box('Spout', (0.25, 0.6, 0.25), (0.8, -WALL_T / 2 - 0.25, WALL_H - 0.9), m['wood']))
@@ -287,6 +370,52 @@ def tower():
         for k in range(4):
             a = k / 4 * 2 * math.pi + 0.4
             p.append(box('Slit', (0.3, 0.15, 1.1), (math.cos(a) * (R + 0.05), math.sin(a) * (R + 0.05), 6.5), m['dark'], (0, 0, a)))
+        p.append(cyl('Pole', 0.07, 4.0, (0, 0, F + 2.0), m['wood2'], axis='Z', verts=6))
+        p.append(box('Flag', (1.6, 0.05, 1.0), (0.85, 0, F + 3.4), m['team']))
+    elif STYLE == 'afrika':
+        # Sahel uslubi: pastga kengaygan loy minora, tepasi uchli, xodalar chiqib turadi
+        S = 6.0
+        p.append(hull_points('Body', [(a * (S / 2 + 1.0), b * (S / 2 + 1.0), 0) for a in (-1, 1) for b in (-1, 1)] +
+                             [(a * (S / 2 - 0.4), b * (S / 2 - 0.4), F - 0.2) for a in (-1, 1) for b in (-1, 1)], m['wall']))
+        p.append(box('Floor', (S - 1.0, S - 1.0, 0.3), (0, 0, F - 0.15), m['wood']))
+        for s_ in (-1, 1):
+            p += merl_pinnacle(m['wall'], -S / 2 + 0.4, S / 2 - 0.4, s_ * (S / 2 - 0.65), F - 0.2)
+            p += [pyramid('PinY', 0.5, 0.7, 1.4, (s_ * (S / 2 - 0.65), -S / 2 + 1.2 + k * 1.6, F - 0.2), m['wall'], 0.12) for k in range(3)]
+        M_WOOD[:] = [m['wood']]
+        for zz in (3.0, 5.6, 8.2):
+            for a in (-1, 1):
+                for k in range(3):
+                    p.append(box('Toron', (0.12, 0.7, 0.12), (-1.6 + k * 1.6, a * (S / 2 + 1.0 - zz * 0.12), zz), m['wood']))
+        for a in (-1, 1):
+            for b in (-1, 1):
+                p.append(pyramid('Corner', 0.9, 0.9, 2.6, (a * (S / 2 - 0.45), b * (S / 2 - 0.45), F - 0.2), m['wall2'], 0.15))
+        p.append(cyl('Pole', 0.07, 4.0, (0, 0, F + 2.0), m['wood2'], axis='Z', verts=6))
+        p.append(box('Flag', (1.6, 0.05, 1.0), (0.85, 0, F + 3.4), m['team']))
+    elif STYLE == 'hind':
+        # dumaloq qizil qumtosh minora, tepasida chhatri (ustunli gumbazcha)
+        R = 3.6
+        p.append(cyl('Body', R + 0.3, F, (0, 0, F / 2), m['wall'], axis='Z', verts=24, r2=R - 0.1))
+        for z in (3.5, 7.0):
+            p.append(cyl('Band', R + 0.25 - z * 0.03, 0.3, (0, 0, z), m['trim'], axis='Z', verts=24))
+        p.append(cyl('Floor', R - 0.2, 0.25, (0, 0, F - 0.12), m['wall2'], axis='Z', verts=24))
+        for i in range(14):
+            a = i / 14 * 2 * math.pi
+            px, py = math.cos(a) * (R - 0.15), math.sin(a) * (R - 0.15)
+            p.append(box('M1', (0.45, 0.8, 0.55), (px, py, F + 0.2), m['wall'], (0, 0, a)))
+            p.append(sph_('M2', 0.38, (px, py, F + 0.5), m['wall']))
+        p += chhatri(m, 0, 0, F + 1.2, 1.0)
+    elif STYLE == 'yunon':
+        S = 7.0
+        p.append(box('Base', (S + 0.6, S + 0.6, 1.0), (0, 0, 0.5), m['base']))
+        p.append(box('Body', (S, S, F - 1.0), (0, 0, 1.0 + (F - 1.0) / 2), m['wall']))
+        for k in range(6):
+            p.append(box('Course', (S + 0.04, S + 0.04, 0.05), (0, 0, 2.0 + k * 1.5), m['wall2']))
+        p.append(box('Floor', (S - 0.4, S - 0.4, 0.3), (0, 0, F - 0.15), m['wood']))
+        for s_ in (-1, 1):
+            p += merl_rect(m['wall'], -S / 2, S / 2, s_ * (S / 2 - 0.27), F - 0.1, 1.5, 0.9, 1.0, 0.55)
+            p += [box('Mx', (0.55, 0.9, 1.0), (s_ * (S / 2 - 0.27), -S / 2 + 1.2 + k * 1.55, F + 0.4), m['wall']) for k in range(4)]
+        for k in range(3):
+            p.append(box('Slit', (0.15, 0.3, 1.2), (S / 2 + 0.01, -1.5 + k * 1.5, 6.0), m['dark']))
         p.append(cyl('Pole', 0.07, 4.0, (0, 0, F + 2.0), m['wood2'], axis='Z', verts=6))
         p.append(box('Flag', (1.6, 0.05, 1.0), (0.85, 0, F + 3.4), m['team']))
     elif STYLE == 'bastion':
@@ -377,6 +506,36 @@ def gate():
                                          (-1.6, -WALL_T / 2 - 0.9, 5.4), (1.6, -WALL_T / 2 - 0.9, 5.4), (0, -WALL_T / 2 - 0.9, 7.2)], m['dark']))
         p += door()
         p += merl_step(m['wall'], -1.8, 1.8, -WALL_T / 2 - 0.6, 9.7)
+    elif STYLE == 'afrika':
+        for sx in (-1, 1):
+            p.append(hull_points('GT', [(sx * 3.8 + a * 2.4, b * (WALL_T / 2 + 2.0), 0) for a in (-1, 1) for b in (-1, 1)] +
+                                 [(sx * 3.8 + a * 1.6, b * (WALL_T / 2 + 1.2), 12.0) for a in (-1, 1) for b in (-1, 1)], m['wall']))
+            p += [pyramid('Pin', 0.8, 0.8, 2.2, (sx * 3.8 + a * 1.2, b * 1.4, 12.0), m['wall2'], 0.12) for a in (-1, 1) for b in (-1, 1)]
+            for zz in (3.0, 6.0, 9.0):
+                for k in range(2):
+                    p.append(box('Toron', (0.12, 0.8, 0.12), (sx * 3.8 - 0.7 + k * 1.4, -(WALL_T / 2 + 2.0 - zz * 0.07), zz), m['wood']))
+        p.append(box('Arch', (3.6, WALL_T + 2.0, 3.0), (0, 0, 8.0), m['wall']))
+        p += merl_pinnacle(m['wall'], -1.8, 1.8, -WALL_T / 2 - 0.6, 9.5)
+        p += door()
+    elif STYLE == 'hind':
+        # katta ravoqli darvoza, ikki yonida sakkiz qirrali minoralar va chhatrilar
+        for sx in (-1, 1):
+            p.append(cyl('GT', 2.6, 13.0, (sx * 3.9, -0.8, 6.5), m['wall'], axis='Z', verts=8, r2=2.3))
+            p.append(cyl('GTBand', 2.5, 0.35, (sx * 3.9, -0.8, 8.5), m['trim'], axis='Z', verts=8))
+            p += chhatri(m, sx * 3.9, -0.8, 13.0, 1.1)
+        p.append(box('Body', (5.6, WALL_T + 2.4, 11.0), (0, -0.4, 5.5), m['wall']))
+        p.append(hull_points('ArchPt', [(-1.7, -WALL_T / 2 - 1.62, 0), (1.7, -WALL_T / 2 - 1.62, 0), (-1.7, -WALL_T / 2 - 1.62, 5.0), (1.7, -WALL_T / 2 - 1.62, 5.0), (0, -WALL_T / 2 - 1.62, 7.2),
+                                        (-1.7, -WALL_T / 2 - 1.5, 0), (1.7, -WALL_T / 2 - 1.5, 0), (-1.7, -WALL_T / 2 - 1.5, 5.0), (1.7, -WALL_T / 2 - 1.5, 5.0), (0, -WALL_T / 2 - 1.5, 7.2)], m['trim']))
+        p.append(box('Door', (2.8, 0.3, 5.0), (0, -WALL_T / 2 - 1.75, 2.5), m['wood']))
+        p += merl_round(m['wall'], -2.8, 2.8, -WALL_T / 2 - 1.2, 11.0)
+    elif STYLE == 'yunon':
+        for sx in (-1, 1):
+            p.append(box('GT', (4.0, WALL_T + 3.0, 11.5), (sx * 3.8, -0.6, 5.75), m['wall']))
+            p += merl_rect(m['wall'], sx * 3.8 - 2.0, sx * 3.8 + 2.0, -WALL_T / 2 - 1.8, 11.5, 1.5, 0.9, 1.0, 0.55)
+        p.append(box('Lintel', (3.8, WALL_T + 1.6, 2.4), (0, -0.2, 8.6), m['wall2']))
+        p.append(box('LintelStone', (4.4, 0.4, 0.8), (0, -WALL_T / 2 - 1.05, 7.2), m['trim']))
+        p += door()
+        p += merl_rect(m['wall'], -1.8, 1.8, -WALL_T / 2 - 0.6, 9.8, 1.5, 0.9, 1.0, 0.55)
     elif STYLE == 'bastion':
         # klassik darvoza: g'isht portal, oq toshli pilyastrlar va uchburchak frontonli
         p.append(box('Body', (9.0, WALL_T + 2.0, 8.4), (0, 0, 4.2), m['wall']))
@@ -465,6 +624,61 @@ def keep():
                                       (-1.4, -S / 2 + 0.1, 0), (1.4, -S / 2 + 0.1, 0), (-1.4, -S / 2 + 0.1, 3.2), (1.4, -S / 2 + 0.1, 3.2), (0, -S / 2 + 0.1, 4.6)], m['wood']))
         p.append(cyl('Pole', 0.1, 5.0, (5, -5, H + 2.5), m['wood2'], axis='Z', verts=6))
         p.append(box('Flag', (2.4, 0.05, 1.5), (6.25, -5, H + 4.3), m['team']))
+    elif STYLE == 'afrika':
+        # Jenne/Timbuktu uslubidagi loy saroy: uchta baland minorasimon tayanch, xodalar, uchli tepalar
+        S = 16.0; H = 10.0
+        p.append(hull_points('Body', [(a * (S / 2 + 0.8), b * (S / 2 + 0.8), 0) for a in (-1, 1) for b in (-1, 1)] +
+                             [(a * S / 2, b * S / 2, H) for a in (-1, 1) for b in (-1, 1)], m['wall']))
+        for k in range(3):
+            x = -5.0 + k * 5.0
+            p.append(hull_points('Tower', [(x + a * 1.6, -S / 2 - 1.2 + b * 1.4, 0) for a in (-1, 1) for b in (-1, 1)] +
+                                 [(x + a * 1.0, -S / 2 - 0.9 + b * 0.9, H + 5.0) for a in (-1, 1) for b in (-1, 1)], m['wall2']))
+            p.append(pyramid('TowerTop', 1.4, 1.4, 1.6, (x, -S / 2 - 0.9, H + 5.0), m['wall2'], 0.15))
+            p.append(sph_('Egg', 0.35, (x, -S / 2 - 0.9, H + 6.8), m['roof2']))
+            for zz in (3, 6, 9, 12):
+                p.append(box('Toron', (0.12, 0.9, 0.12), (x, -S / 2 - 2.3 + zz * 0.04, zz), m['wood']))
+        p += sum([merl_pinnacle(m['wall'], -S / 2, S / 2, s_ * (S / 2 - 0.3), H) for s_ in (-1, 1)], [])
+        p.append(box('Door', (2.4, 0.3, 3.6), (0, -S / 2 - 0.9, 1.8), m['wood2']))
+        p.append(cyl('Pole', 0.1, 5.0, (5, 4, H + 2.5), m['wood2'], axis='Z', verts=6))
+        p.append(box('Flag', (2.4, 0.05, 1.5), (6.25, 4, H + 4.3), m['team']))
+    elif STYLE == 'hind':
+        # qizil qumtosh saroy: ravoqli ayvon, burchaklarda chhatrilar, o'rtada oq marmar gumbaz
+        S = 17.0; H = 9.0
+        p.append(box('Plinth', (S + 2, S + 2, 1.2), (0, 0, 0.6), m['wall2']))
+        p.append(box('Body', (S, S, H), (0, 0, 1.2 + H / 2), m['wall']))
+        for k in range(5):
+            x = -6.0 + k * 3.0
+            p.append(hull_points('Arcade', [(x - 1.1, -S / 2 - 0.05, 1.2), (x + 1.1, -S / 2 - 0.05, 1.2), (x - 1.1, -S / 2 - 0.05, 4.4), (x + 1.1, -S / 2 - 0.05, 4.4), (x, -S / 2 - 0.05, 5.6),
+                                             (x - 1.1, -S / 2 + 0.2, 1.2), (x + 1.1, -S / 2 + 0.2, 1.2), (x - 1.1, -S / 2 + 0.2, 4.4), (x + 1.1, -S / 2 + 0.2, 4.4), (x, -S / 2 + 0.2, 5.6)], m['dark']))
+            p.append(box('Jharokha', (1.6, 0.6, 1.4), (x, -S / 2 - 0.3, 7.6), m['trim']))
+        p.append(box('Band', (S + 0.2, S + 0.2, 0.4), (0, 0, 1.2 + H), m['trim']))
+        for a in (-1, 1):
+            for b in (-1, 1):
+                p += chhatri(m, a * (S / 2 - 1.4), b * (S / 2 - 1.4), 1.4 + H, 1.2)
+        p.append(cyl('Drum', 3.4, 2.0, (0, 0, 1.4 + H + 1.0), m['trim'], axis='Z', verts=24))
+        p.append(dome('Dome', 3.6, (0, 0, 1.4 + H + 2.0), m['roof'], 1.15))
+        p.append(cyl('Finial', 0.12, 1.6, (0, 0, 1.4 + H + 6.8), m['roof2'], axis='Z', verts=8))
+        p.append(cyl('Pole', 0.1, 5.0, (6, 6, H + 4.0), m['wood2'], axis='Z', verts=6))
+        p.append(box('Flag', (2.4, 0.05, 1.5), (7.25, 6, H + 5.8), m['team']))
+    elif STYLE == 'yunon':
+        # akropol ibodatxonasi: zinapoyali supa, doric ustunlar, fronton, cherepitsa tom
+        L_, W_ = 20.0, 12.0
+        for k in range(3):
+            p.append(box('Step', (L_ + 2.4 - k * 0.8, W_ + 2.4 - k * 0.8, 0.5), (0, 0, 0.25 + k * 0.5), m['trim']))
+        p.append(box('Cella', (L_ - 5, W_ - 4, 6.5), (0, 0, 1.5 + 3.25), m['wall']))
+        nx, ny = 8, 5
+        for i in range(nx):
+            for j in (0, ny - 1):
+                p.append(cyl('Col', 0.42, 6.5, (-L_ / 2 + 1.0 + i * (L_ - 2.0) / (nx - 1), -W_ / 2 + 1.0 + j * (W_ - 2.0) / (ny - 1), 1.5 + 3.25), m['trim'], axis='Z', verts=12, r2=0.36))
+        for j in range(1, ny - 1):
+            for i in (0, nx - 1):
+                p.append(cyl('Col', 0.42, 6.5, (-L_ / 2 + 1.0 + i * (L_ - 2.0) / (nx - 1), -W_ / 2 + 1.0 + j * (W_ - 2.0) / (ny - 1), 1.5 + 3.25), m['trim'], axis='Z', verts=12, r2=0.36))
+        p.append(box('Architrave', (L_, W_, 1.0), (0, 0, 8.5), m['trim']))
+        p.append(hull_points('Roof', [(a * (L_ / 2 + 0.3), b * (W_ / 2 + 0.3), 9.0) for a in (-1, 1) for b in (-1, 1)] + [(a * (L_ / 2 + 0.3), 0, 11.4) for a in (-1, 1)], m['roof']))
+        for a in (-1, 1):
+            p.append(hull_points('Pediment', [(a * (L_ / 2 + 0.31), b * (W_ / 2), 9.0) for b in (-1, 1)] + [(a * (L_ / 2 + 0.31), 0, 11.2)], m['trim']))
+        p.append(cyl('Pole', 0.1, 5.0, (7, 7, 4.5), m['wood2'], axis='Z', verts=6))
+        p.append(box('Flag', (2.4, 0.05, 1.5), (8.25, 7, 6.3), m['team']))
     elif STYLE == 'bastion':
         # neoklassik komendatura: sariq bino, oq ustunli portik, yashil tom
         yel = mat('Yellow', '#d8b860', 0.85)
