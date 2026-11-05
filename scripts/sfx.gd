@@ -29,10 +29,18 @@ func _scan() -> void:
 	var d := DirAccess.open(DIR)
 	if d == null:
 		return
+	# ro'yxat (royxat.txt) bo'lsa - faqat undagi fayllar (yangilanishdan keyin eski fayllar kompyuterda qolib ketsa ham ishlatilmaydi)
+	var allow := {}
+	if FileAccess.file_exists(DIR + "royxat.txt"):
+		for ln in FileAccess.get_file_as_string(DIR + "royxat.txt").split("\n"):
+			if ln.strip_edges() != "":
+				allow[ln.strip_edges()] = true
 	var seen := {}
 	for f in d.get_files():
 		var fn := f.trim_suffix(".import").trim_suffix(".remap")
 		if not (fn.ends_with(".ogg") or fn.ends_with(".wav")) or seen.has(fn):
+			continue
+		if not allow.is_empty() and not allow.has(fn):
 			continue
 		seen[fn] = true
 		var st: AudioStream = load(DIR + fn)
