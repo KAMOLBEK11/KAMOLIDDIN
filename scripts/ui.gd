@@ -482,8 +482,8 @@ func _rebuild_panel() -> void:
 		side_box.add_child(b3)
 	if mine and Game.started and War.garrison_power(p) >= 1.0:
 		var go_top := Button.new()
-		go_top.text = "Qo'shinni yuborish  (kuch %d)" % roundi(War.garrison_power(p))
-		go_top.icon = load("res://icons/tank.svg")
+		go_top.text = ("Qo'shinni yuborish  (kuch %d)" % roundi(War.garrison_power(p))) if Game.era >= 4 else ("Qo'shinni yurishga chiqarish  (%d askar)" % roundi(p["units"].get("soldier", 0.0)))
+		go_top.icon = _army_icon()
 		go_top.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		go_top.custom_minimum_size = Vector2(0, 40)
 		go_top.pressed.connect(War.begin_target.bind(id))
@@ -579,7 +579,7 @@ func _rebuild_panel() -> void:
 	if War.garrison_power(p) >= 1.0:
 		var go := Button.new()
 		go.text = "Qo'shinni yuborish (hujum / ko'chirish)"
-		go.icon = load("res://icons/tank.svg")
+		go.icon = _army_icon()
 		go.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		go.custom_minimum_size = Vector2(0, 40)
 		go.pressed.connect(War.begin_target.bind(id))
@@ -706,8 +706,8 @@ func _foreign_panel(id: String, p: Dictionary) -> void:
 			src = n
 	if src != "":
 		var atk := Button.new()
-		atk.text = "HUJUM  (%s dan, kuch %d)" % [Game.provinces[src]["name"], roundi(best)]
-		atk.icon = load("res://icons/tank.svg")
+		atk.text = ("HUJUM  (%s dan, kuch %d)" % [Game.provinces[src]["name"], roundi(best)]) if Game.era >= 4 else ("Yurish: %s qo'shini bilan bosib olish  (%d askar)" % [Game.provinces[src]["name"], roundi(Game.provinces[src]["units"].get("soldier", 0.0))])
+		atk.icon = _army_icon()
 		atk.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		atk.custom_minimum_size = Vector2(0, 44)
 		atk.pressed.connect(func(): War.begin_target(src); War.choose_target(id))
@@ -737,13 +737,13 @@ func _armies_here(id: String) -> void:
 	for a in list:
 		var mine: bool = a["owner"] == Game.PLAYER
 		var who: String = "Sizning qo'shiningiz" if mine else War.country_name(a["owner"]) + " qo'shini"
-		var txt := "%s: %d askar, %d tank (kuch %d)" % [who, roundi(a["soldiers"]), roundi(a["tanks"]), roundi(War.power(a))]
+		var txt := ("%s: %d askar, %d tank (kuch %d)" % [who, roundi(a["soldiers"]), roundi(a["tanks"]), roundi(War.power(a))]) if Game.era >= 4 else ("%s: %d askar" % [who, roundi(a["soldiers"])])
 		if mine:
 			txt += "\nZaxira: %d%%" % roundi(a["supply"])
 		side_box.add_child(_label(txt, 14, COL_GOOD if mine else COL_BAD))
 		var fb := Button.new()
 		fb.text = "JANGNI BOSHQARISH (3D)"
-		fb.icon = load("res://icons/tank.svg")
+		fb.icon = _army_icon()
 		fb.custom_minimum_size = Vector2(0, 42)
 		fb.pressed.connect(func(): War.open_battle.emit(a["id"]))
 		side_box.add_child(fb)
@@ -768,7 +768,14 @@ func _build_log(root: Control) -> void:
 	root.add_child(log_box)
 
 
+func _army_icon() -> Texture2D:
+	## qadimiy davrda tank o'rniga kesishgan qilichlar
+	return load("res://icons/tank.svg") if Game.era >= 4 else load("res://icons/qilich.svg")
+
+
 func _on_message(text: String, kind: String) -> void:
+	if Game.era < 4:
+		text = text.replace(" $", " oltin").replace("$", " oltin").replace("Byudjet", "Xazina").replace("byudjet", "xazina")
 	var col := COL_INFO
 	match kind:
 		"good": col = COL_GOOD
@@ -818,7 +825,9 @@ func _refresh() -> void:
 	inbox_btn.add_theme_color_override("font_color", Color("#ffd166") if n > 0 else Color.WHITE)
 	var wl: Array = []
 	for c in War.wars:
-		wl.append(War.country_name(c))
+		var wn: String = War.country_name(c)
+		if wn.strip_edges() != "":
+			wl.append(wn)
 	war_label.text = ("Urush: " + ", ".join(wl)) if not wl.is_empty() else ""
 	if Diplo.sanctioned():
 		war_label.text += ("   " if war_label.text != "" else "") + "SANKSIYA (%d kun)" % Diplo.sanction_days

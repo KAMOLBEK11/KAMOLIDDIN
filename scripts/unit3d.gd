@@ -472,6 +472,11 @@ const CAPARISON := {"temur": ["#1f4e8c", "#c9a03a"], "osiyo": ["#1f4e8c", "#c9a0
 	"afrika": ["#c9b48a", "#8a3a1e"], "hind": ["#c0392b", "#d8b040"], "yunon": ["#a8282a", "#b08a4a"], "angliya": ["", "#d8b040"]}
 
 
+# yopinchiq ot tanasiga yopishib turadi - chavandozning oyoqlari uning USTIDAN ko'rinadi
+const CAP_HW := 0.25
+const CAP_TOP := 1.5
+
+
 static func caparison(h: Node3D, faction: String, team: Color) -> void:
 	var sk := _skeleton(h)
 	if sk == null or sk.find_bone("Spine") < 0 or not CAPARISON.has(faction):
@@ -483,15 +488,15 @@ static func caparison(h: Node3D, faction: String, team: Color) -> void:
 	var full: bool = faction in ["temur", "osiyo", "arab", "arabi", "rus", "xitoy", "yevropa", "italiya", "afrika", "hind", "yunon", "angliya"]     # 1400: uzun yopinchiq
 	var z0 := -0.72 if full else -0.38
 	var z1 := 0.62 if full else 0.28
-	var ytop := 1.6
+	var ytop := CAP_TOP
 	var ybot := 0.95 if full else 1.18
 	# yumshoq yopinchiq: ot beli ustidan egilib, ikki yonga osilib tushadi, pastki cheti to'lqinsimon
 	var m2: StandardMaterial3D = main.duplicate()
 	m2.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_attach(sk, sp, _drape(0.34, ytop, ybot, z0, z1, 0.0), m2, Transform3D())
+	_attach(sk, sp, _drape(CAP_HW, ytop, ybot, z0, z1, 0.0), m2, Transform3D())
 	var t2: StandardMaterial3D = trim.duplicate()
 	t2.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_attach(sk, sp, _drape(0.355, ybot + 0.1, ybot, z0 - 0.01, z1 + 0.01, 0.07, true), t2, Transform3D())
+	_attach(sk, sp, _drape(CAP_HW + 0.015, ybot + 0.1, ybot, z0 - 0.01, z1 + 0.01, 0.07, true), t2, Transform3D())
 
 
 static func _drape(hw: float, ytop: float, ybot: float, z0: float, z1: float, wave: float, band := false) -> ArrayMesh:

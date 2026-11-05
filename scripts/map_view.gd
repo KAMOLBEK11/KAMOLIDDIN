@@ -312,9 +312,14 @@ func _on_zoom_changed() -> void:
 	var z := cam.zoom.x
 	if overlay:
 		for l in border_lines:
-			l.width = 1.3 / z
-			l.default_color = Color(0.05, 0.06, 0.08, 0.28)
-			l.visible = Game.era >= 4       # eski xaritada davlat bitta butun hudud bo'lib ko'rinadi
+			if Game.era < 4:
+				# eski xaritada viloyat chegarasi - ingichka siyoh chiziq (davlat chegarasidan ancha nozik)
+				l.width = 1.4 / z
+				l.default_color = Color(0.3, 0.18, 0.08, 0.45)
+			else:
+				l.width = 1.3 / z
+				l.default_color = Color(0.05, 0.06, 0.08, 0.28)
+			l.visible = true
 		for l in country_lines:
 			l.width = (4.2 if Game.era < 4 else 3.4) / z
 			if Game.era < 4:

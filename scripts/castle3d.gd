@@ -14,8 +14,8 @@ const TOWER_COVER := 24.0           # minoradagi kamonchilar devorni shu masofag
 const NAMES := {"wall": "Devor", "moat": "Xandaq", "tower": "Minora", "gate": "Darvoza", "barracks": "Kazarma",
 	"granary": "Ombor", "well": "Quduq", "smithy": "Temirchi", "stable": "Otxona", "delete": "Buzish",
 	"farm": "Bug'doy", "lumber": "O'tinxona", "quarry": "Tosh koni", "market": "Bozor", "mint": "Zarbxona",
-	"mosque": "Masjid", "house": "Uylar"}
-const ROW1 := ["wall", "tower", "gate", "moat", "barracks", "granary", "well", "smithy", "stable", "mosque", "delete"]
+	"mosque": "Masjid", "house": "Uylar", "torch": "Mash'al"}
+const ROW1 := ["wall", "tower", "gate", "moat", "barracks", "granary", "well", "smithy", "stable", "mosque", "torch", "delete"]
 const ROW2 := ["farm", "lumber", "quarry", "market", "mint", "house"]
 const MAX_FIG := 160
 const ROW_W := 10          # saf kengligi (figura)
@@ -23,7 +23,8 @@ const TIPS := {"wall": "Devor: 1-bosish - boshlanish, keyingi bosishlar - devorn
 	"moat": "Xandaq: devor tashqarisidan chizing - dushmanni sekinlashtiradi. O'ng tugma / Esc - tugatish. (%d oltin/m)",
 	"tower": "Minora: devor burchagi yoki o'rtasiga qo'ying. Minoradagi kamonchilar %d m gacha devorni himoya qiladi.",
 	"gate": "Darvoza: mavjud devorni bosing. Darvoza - eng zaif joy, lekin askarlar shu yerdan chiqadi.",
-	"delete": "Buzish: obyektni bosing (narxining yarmi qaytadi)."}
+	"delete": "Buzish: obyektni bosing (narxining yarmi qaytadi).",
+	"torch": "Mash'al (gulxan): istalgan joyni bosing - kechasi atrofni yoritadi. Minora, devor va binolar oldida mash'allar o'zi yonadi."}
 const FOOT := {"barracks": Vector2(17, 9), "granary": Vector2(11, 9), "well": Vector2(4, 3), "smithy": Vector2(9, 7),
 	"stable": Vector2(15, 8), "keep": Vector2(24, 24), "farm": Vector2(22, 15), "lumber": Vector2(12, 10),
 	"quarry": Vector2(14, 12), "market": Vector2(16, 12), "mint": Vector2(11, 11),
@@ -75,6 +76,8 @@ var _g_out := PackedByteArray()
 var _g_blk := PackedByteArray()
 var _g_n := 0
 var _g_half := 0
+var rts: CastleRTS             # askarlarni sichqoncha bilan boshqarish
+var _gate_doors: Array = []
 
 
 # ================================================================ boshlash
@@ -95,6 +98,9 @@ func setup(id: String) -> void:
 	_build_world()
 	army_root = Node3D.new()
 	world.add_child(army_root)
+	rts = CastleRTS.new()
+	add_child(rts)
+	rts.setup(self)
 	_rebuild()
 	Game.changed.connect(_show_army)
 	_show_army()
@@ -270,7 +276,10 @@ func _gate_near(p: Vector3, r: float) -> bool:
 
 # ================================================================ chizish
 
-func _torch(p: Vector3, col := Color(1.0, 0.62, 0.3), rng := 16.0) -> void:
+func _torch(p: Vector3, col := Color(1.0, 0.62, 0.3), rng := 16.0, flame := 1.0) -> void:
+	## mash'al yorug'ligi: kechasi yonadi (alanga va nur), kunduzi o'chadi
+	if daynight.torches.size() >= 56:
+		return
 	var l := OmniLight3D.new()
 	l.position = p
 	l.light_color = col
@@ -279,6 +288,100 @@ func _torch(p: Vector3, col := Color(1.0, 0.62, 0.3), rng := 16.0) -> void:
 	l.shadow_enabled = false
 	build_root.add_child(l)
 	daynight.torches.append(l)
+	if flame > 0.0:
+		l.add_child(_flame(flame))
+
+
+var _flame_mat: StandardMaterial3D
+
+
+func _flame(s: float) -> CPUParticles3D:
+	## jonli alanga: yuqoriga ko'tarilib so'nadigan yorqin zarrachalar
+	var p := CPUParticles3D.new()
+	var qm := QuadMesh.new()
+	qm.size = Vector2(0.34, 0.42) * s
+	if _flame_mat == null:
+		_flame_mat = StandardMaterial3D.new()
+		_flame_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_flame_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_flame_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		_flame_mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+		_flame_mat.vertex_color_use_as_albedo = true
+		var gt := GradientTexture2D.new()
+		var gr := Gradient.new()
+		gr.set_color(0, Color(1, 1, 1, 1))
+		gr.set_color(1, Color(1, 1, 1, 0))
+		gt.gradient = gr
+		gt.fill = GradientTexture2D.FILL_RADIAL
+		gt.fill_from = Vector2(0.5, 0.5)
+		gt.fill_to = Vector2(0.5, 0.0)
+		_flame_mat.albedo_texture = gt
+	qm.material = _flame_mat
+	p.mesh = qm
+	p.amount = 16
+	p.lifetime = 0.55
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	p.emission_sphere_radius = 0.1 * s
+	p.direction = Vector3.UP
+	p.spread = 12.0
+	p.gravity = Vector3(0, 1.6, 0)
+	p.initial_velocity_min = 0.5 * s
+	p.initial_velocity_max = 0.9 * s
+	var sc := Curve.new()
+	sc.add_point(Vector2(0, 0.8))
+	sc.add_point(Vector2(0.3, 1.0))
+	sc.add_point(Vector2(1, 0.15))
+	p.scale_amount_curve = sc
+	var cg := Gradient.new()
+	cg.set_color(0, Color(1.0, 0.95, 0.6, 0.95))
+	cg.add_point(0.4, Color(1.0, 0.55, 0.12, 0.85))
+	cg.set_color(cg.get_point_count() - 1, Color(0.7, 0.15, 0.05, 0.0))
+	p.color_ramp = cg
+	p.position = Vector3(0, -0.15, 0)
+	return p
+
+
+func _brazier(p: Vector3) -> void:
+	## temir qozonli gulxan (yerda yoki minora tepasida)
+	var sc := _scene("torch")
+	if sc:
+		var o: Node3D = sc.instantiate()
+		o.position = p
+		build_root.add_child(o)
+	_torch(p + Vector3(0, 1.75, 0), Color(1.0, 0.6, 0.28), 18.0, 1.3)
+
+
+func _wall_torch(p: Vector3, yaw: float) -> void:
+	## devorga osilgan mash'al: temir ilgak va tayoq uchida alanga
+	var root := Node3D.new()
+	root.position = p
+	root.rotation.y = yaw
+	build_root.add_child(root)
+	var stick := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.06
+	cm.bottom_radius = 0.04
+	cm.height = 0.7
+	stick.mesh = cm
+	var wm := StandardMaterial3D.new()
+	wm.albedo_color = Color("#4a2e18")
+	stick.material_override = wm
+	stick.rotation.z = -0.35
+	stick.position = Vector3(0.12, 0, 0)
+	root.add_child(stick)
+	var head := MeshInstance3D.new()
+	var hm := CylinderMesh.new()
+	hm.top_radius = 0.1
+	hm.bottom_radius = 0.07
+	hm.height = 0.16
+	head.mesh = hm
+	var im := StandardMaterial3D.new()
+	im.albedo_color = Color("#2a2826")
+	im.metallic = 0.7
+	head.material_override = im
+	head.position = Vector3(0.24, 0.34, 0)
+	root.add_child(head)
+	_torch(p + Basis(Vector3.UP, yaw) * Vector3(0.24, 0.55, 0), Color(1.0, 0.62, 0.3), 12.0, 0.8)
 
 
 func _rebuild_lights() -> void:
@@ -296,7 +399,47 @@ func _rebuild_lights() -> void:
 			var r := float(b["rot"])
 			var off := Basis(Vector3.UP, r) * Vector3(6.8, 0, 3.4)
 			daynight.minaret_pos = _v(b["p"]) + off + Vector3(0, 20, 0)
-			_torch(_v(b["p"]) + Basis(Vector3.UP, r) * Vector3(0, 3, 6.5), Color(1.0, 0.8, 0.5), 18.0)
+	# o'yinchi qo'ygan gulxanlar
+	for t in data.get("torches", []):
+		_brazier(_v(t))
+	# minoralar tepasida gulxan
+	var top := float(Unit3D.STYLE_TOP.get(Unit3D.castle_style(_p()["country"]), 11.65))
+	for t in data["towers"]:
+		var tp := _v(t["p"])
+		var out := (tp - _keep())
+		out.y = 0
+		out = out.normalized() if out.length() > 0.1 else Vector3(1, 0, 0)
+		_brazier(tp + out.rotated(Vector3.UP, 1.2) * 1.8 + Vector3(0, top, 0))
+	# devor ichki tomonida har ~22 m da mash'al
+	var kp := _keep()
+	var nwt := 0
+	for w in data["walls"]:
+		var a := _v(w["a"])
+		var b := _v(w["b"])
+		var L := a.distance_to(b)
+		var dir := (b - a) / maxf(0.1, L)
+		var nrm := Vector3(-dir.z, 0, dir.x)
+		if nrm.dot(kp - (a + b) * 0.5) < 0.0:
+			nrm = -nrm
+		var n := int(L / 22.0)
+		for i in n:
+			if nwt >= 18:
+				break
+			var q := a + dir * (L * (float(i) + 0.5) / float(n))
+			if _gate_near(q, 6.0):
+				continue
+			_wall_torch(q + nrm * 1.62 + Vector3(0, 4.6, 0), atan2(-nrm.z, nrm.x))
+			nwt += 1
+	# binolar eshigi oldida ikki tomonda mash'al
+	for b in data["buildings"]:
+		if not b["t"] in ["barracks", "mosque", "smithy", "stable", "granary", "market", "mint", "house"]:
+			continue
+		var r2 := float(b["rot"])
+		var f: Vector2 = FOOT.get(b["t"], Vector2(8, 8))
+		var fwd := Basis(Vector3.UP, r2) * Vector3(0, 0, 1)
+		var side := Basis(Vector3.UP, r2) * Vector3(1, 0, 0)
+		for s in ([-1.0, 1.0] if b["t"] != "house" else [1.0]):
+			_wall_torch(_v(b["p"]) + fwd * (f.y * 0.5 + 0.15) + side * s * minf(2.4, f.x * 0.3) + Vector3(0, 2.4, 0), atan2(-fwd.z, fwd.x))
 
 func _rebuild() -> void:
 	for c in build_root.get_children():
@@ -305,6 +448,7 @@ func _rebuild() -> void:
 	var k := _inst("keep")
 	k.position = _keep()
 	build_root.add_child(k)
+	_live_flags(k, false)
 	# ark tepasida o'yinchi bayrog'i
 	var top := 0.0
 	for mi in k.find_children("*", "MeshInstance3D", true, false):
@@ -325,34 +469,47 @@ func _rebuild() -> void:
 		if Unit3D.castle_style(_p()["country"]) == "bastion" and away.length() > 0.5:
 			o.rotation.y = atan2(away.x, away.z)        # bastion uchi tashqariga qaraydi
 		build_root.add_child(o)
+		_live_flags(o)
 		# minora tepasida soqchi (1-zamonda kamonchi, 2-zamonda miltiqli sarboz): atrofni kuzatadi
 		var u := Unit3D.soldier(Unit3D.faction_for(_p()["country"]), "sarboz" if Game.era == 2 else "kamonchi", Color(Game.countries[_p()["country"]]["color"]))
 		if u:
-			u.position = o.position + Vector3(0, float(Unit3D.STYLE_TOP.get(Unit3D.castle_style(_p()["country"]), 11.65)), 0)
+			var ttop := float(Unit3D.STYLE_TOP.get(Unit3D.castle_style(_p()["country"]), 11.65))
 			var base := atan2(o.position.x - _keep().x, o.position.z - _keep().z) - PI / 2.0
 			u.rotation.y = base
 			build_root.add_child(u)
 			_add_guard(u, base, "tower")
+			var gd: Dictionary = guards[guards.size() - 1]
+			gd["c"] = o.position + Vector3(0, ttop, 0)
+			gd["ang"] = randf() * TAU
+			gd["walk"] = 0.0
+			u.position = gd["c"] + Vector3(cos(gd["ang"]), 0, sin(gd["ang"])) * 2.1
 	# devor ustida qorovullar yuradi (devor yo'lagi bo'ylab u yoqdan bu yoqqa)
 	var wi := 0
 	for w in data["walls"]:
 		var a := _v(w["a"])
 		var b := _v(w["b"])
-		if a.distance_to(b) < 14.0 or wi >= 8:
+		var Lw := a.distance_to(b)
+		if Lw < 10.0 or wi >= 30:
 			continue
-		var kind: String = "sarboz" if Game.era == 2 else ["nayzachi", "qilichboz"][wi % 2]
-		var u2 := Unit3D.soldier(Unit3D.faction_for(_p()["country"]), kind, Color(Game.countries[_p()["country"]]["color"]))
-		if u2:
-			build_root.add_child(u2)
-			var g0 := {"node": u2, "mode": "patrol", "a": a.lerp(b, 0.12), "b": a.lerp(b, 0.88), "t": randf(), "dir": 1.0, "wait": 0.0}
-			guards.append(g0)
-			Unit3D.play(u2, "Walk")
-		wi += 1
+		# devor uzunligiga qarab 2-3 qorovul, har biri o'z bo'lagida u yoqdan bu yoqqa yuradi
+		var ng := clampi(int(Lw / 18.0) + 1, 2, 3) if Lw >= 20.0 else 1
+		for gi in ng:
+			var kind: String = "sarboz" if Game.era == 2 else ["nayzachi", "qilichboz", "kamonchi"][(wi + gi) % 3]
+			var u2 := Unit3D.soldier(Unit3D.faction_for(_p()["country"]), kind, Color(Game.countries[_p()["country"]]["color"]))
+			if u2:
+				build_root.add_child(u2)
+				var t0 := 0.08 + 0.84 * float(gi) / float(ng)
+				var t1 := 0.08 + 0.84 * float(gi + 1) / float(ng)
+				var g0 := {"node": u2, "mode": "patrol", "a": a.lerp(b, t0), "b": a.lerp(b, t1), "t": randf(), "dir": 1.0 if randf() < 0.5 else -1.0, "wait": randf() * 2.0}
+				guards.append(g0)
+				Unit3D.play(u2, "Walk")
+			wi += 1
 	for g in data["gates"]:
 		var o := _inst("gate")
 		o.position = _v(g["p"])
 		o.rotation.y = float(g["ang"])
 		build_root.add_child(o)
+		_live_flags(o)
 		for s in [-1.0, 1.0]:
 			var u := Unit3D.soldier(Unit3D.faction_for(_p()["country"]), "nayzachi", Color(Game.countries[_p()["country"]]["color"]))
 			if u:
@@ -367,22 +524,133 @@ func _rebuild() -> void:
 		o.position = _v(b["p"])
 		o.rotation.y = float(b["rot"])
 		build_root.add_child(o)
+		_live_flags(o)
 	_rebuild_lights()
 	_analyze()
 	_make_slots()
 	_refresh_army(true)
-	# ko'r nuqtalar: minoradan uzoq devorlar ustida qizil belgi
-	for seg in stats.get("blind_segs", []):
-		var a: Vector3 = seg[0]
-		var b: Vector3 = seg[1]
+	if rts:
+		rts.rebuild_nav()
+	_rebuild_gate_doors()
+
+
+func _rebuild_gate_doors() -> void:
+	## yopiq darvozada yog'och tavaqa ko'rinadi
+	for d in _gate_doors:
+		if is_instance_valid(d):
+			d.queue_free()
+	_gate_doors.clear()
+	if bool(data.get("gate_open", true)):
+		return
+	for g in data["gates"]:
 		var mi := MeshInstance3D.new()
-		var bx := BoxMesh.new()
-		bx.size = Vector3(maxf(0.5, a.distance_to(b)), 0.6, 3.4)
-		mi.mesh = bx
-		mi.material_override = _bad_mat
-		mi.position = (a + b) * 0.5 + Vector3(0, WALL_H + 1.6, 0)
-		mi.rotation.y = atan2(-(b - a).z, (b - a).x)
+		var bm := BoxMesh.new()
+		bm.size = Vector3(4.6, 5.2, 0.35)
+		mi.mesh = bm
+		var m := StandardMaterial3D.new()
+		m.albedo_color = Color("#5a3a1e")
+		m.roughness = 0.9
+		mi.material_override = m
+		var ang := float(g["ang"])
+		mi.rotation.y = ang
+		mi.position = _v(g["p"]) + Vector3(0, 2.6, 0)
 		build_root.add_child(mi)
+		_gate_doors.append(mi)
+		# temir tasmalar
+		for yy in [-1.6, 0.0, 1.6]:
+			var band := MeshInstance3D.new()
+			var bb := BoxMesh.new()
+			bb.size = Vector3(4.65, 0.22, 0.42)
+			band.mesh = bb
+			var bm2 := StandardMaterial3D.new()
+			bm2.albedo_color = Color("#2a2a2c")
+			bm2.metallic = 0.7
+			band.material_override = bm2
+			band.position = Vector3(0, yy, 0)
+			mi.add_child(band)
+
+
+var _flag_cache := {}         # asl mesh -> [bayroqsiz mesh, bayroq to'rtburchaklari]
+
+
+func _live_flags(o: Node3D, replace := true) -> void:
+	## modeldagi qotib turgan (quti) bayroqlarni olib tashlab, o'rniga shamolda hilpiraydigan
+	## o'yinchi bayrog'ini qo'yadi (o'yinchi yuklagan rasm bilan). replace=false - faqat olib tashlash
+	var col := Color(Game.countries[_p()["country"]]["color"]) if Game.countries.has(_p()["country"]) else Color.GREEN
+	for mi in o.find_children("*", "MeshInstance3D", true, false):
+		var m: MeshInstance3D = mi
+		if not (m.mesh is ArrayMesh):
+			continue
+		var key := m.mesh.get_rid().get_id()
+		if not _flag_cache.has(key):
+			_flag_cache[key] = _strip_flags(m.mesh as ArrayMesh)
+		var e: Array = _flag_cache[key]
+		if (e[1] as Array).is_empty():
+			continue
+		m.mesh = e[0]
+		if not replace:
+			continue
+		for r in e[1]:
+			var ab: AABB = r
+			var f := Unit3D.flag(col, Unit3D.flag_tex(), Vector2(maxf(0.6, ab.size.x), maxf(0.4, ab.size.y)))
+			f.position = Vector3(ab.position.x, ab.end.y, ab.position.z + ab.size.z * 0.5)
+			m.add_child(f)
+
+
+func _strip_flags(mesh: ArrayMesh) -> Array:
+	var out := ArrayMesh.new()
+	var rects: Array = []
+	for si in mesh.get_surface_count():
+		var arr := mesh.surface_get_arrays(si)
+		var mat := mesh.surface_get_material(si)
+		var is_team := mat != null and mat.resource_name.contains("TeamColor")
+		if is_team and arr[Mesh.ARRAY_INDEX] != null:
+			var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var ix: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+			# uchburchaklarni bir-biriga ulangan bo'laklarga ajratish (umumiy nuqta bo'yicha)
+			var parent := {}
+			var keyof := func(v: Vector3) -> String: return "%.3f_%.3f_%.3f" % [v.x, v.y, v.z]
+			var find := func(a):
+				var x = a
+				while parent[x] != x:
+					x = parent[x]
+				return x
+			for i in vs.size():
+				var k: String = keyof.call(vs[i])
+				if not parent.has(k):
+					parent[k] = k
+			for t in range(0, ix.size(), 3):
+				var ka: String = find.call(keyof.call(vs[ix[t]]))
+				for q in [1, 2]:
+					var kb: String = find.call(keyof.call(vs[ix[t + q]]))
+					if ka != kb:
+						parent[kb] = ka
+			var groups := {}
+			for t in range(0, ix.size(), 3):
+				var g: String = find.call(keyof.call(vs[ix[t]]))
+				if not groups.has(g):
+					groups[g] = []
+				groups[g].append(t)
+			var keep_ix := PackedInt32Array()
+			for g in groups:
+				var ab := AABB(vs[ix[groups[g][0]]], Vector3.ZERO)
+				for t in groups[g]:
+					for q in 3:
+						ab = ab.expand(vs[ix[t + q]])
+				var dims := [ab.size.x, ab.size.y, ab.size.z]
+				dims.sort()
+				var is_flag: bool = dims[0] < 0.12 and dims[1] > 0.35 and dims[2] < 3.5 and ab.size.y > 0.3
+				if is_flag:
+					rects.append(ab)
+				else:
+					for t in groups[g]:
+						keep_ix.append(ix[t]); keep_ix.append(ix[t + 1]); keep_ix.append(ix[t + 2])
+			if keep_ix.is_empty():
+				continue
+			arr[Mesh.ARRAY_INDEX] = keep_ix
+		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+		out.surface_set_material(out.get_surface_count() - 1, mat)
+	return [out, rects]
 
 
 func _add_guard(u: Node3D, base: float, mode: String) -> void:
@@ -419,6 +687,29 @@ func _update_guards(delta: float) -> void:
 			var d := (b - a) * float(g["dir"])
 			u.rotation.y = lerp_angle(u.rotation.y, atan2(-d.z, d.x), minf(1.0, delta * 5.0))
 			continue
+		if g["mode"] == "tower" and g.has("c"):
+			# minora tepasida aylana bo'ylab sekin yuradi, ba'zan to'xtab tashqariga qaraydi / kamonni tortadi
+			if float(g["walk"]) > 0.0:
+				g["walk"] = float(g["walk"]) - delta
+				g["ang"] = float(g["ang"]) + delta * 0.45
+				var cp: Vector3 = g["c"]
+				var np := cp + Vector3(cos(g["ang"]), 0, sin(g["ang"])) * 2.1
+				var mv := np - u.position
+				u.position = np
+				if mv.length() > 0.0005:
+					u.rotation.y = atan2(-mv.z, mv.x)
+				if float(g["walk"]) <= 0.0:
+					var outd := Vector3(cos(g["ang"]), 0, sin(g["ang"]))
+					g["yaw"] = atan2(-outd.z, outd.x)
+					g["base"] = g["yaw"]
+					g["next"] = randf_range(2.5, 6.0)
+					Unit3D.play(u, "Idle")
+				continue
+			elif float(g["next"]) - delta <= 0.0 and float(g["aim"]) <= 0.0 and randf() < 0.55:
+				g["walk"] = randf_range(2.0, 5.0)
+				g["next"] = 1.0
+				Unit3D.play(u, "Walk")
+				continue
 		g["next"] = float(g["next"]) - delta
 		if g["aim"] > 0.0:
 			g["aim"] = float(g["aim"]) - delta
@@ -663,6 +954,18 @@ func _click(p: Vector3) -> void:
 	if tool == "":
 		return
 	var sp := _snap(p)
+	if tool == "torch":
+		if not _in_area(sp):
+			_msg("Qurish hududidan tashqarida", true)
+			return
+		if _pay(_cost("torch")):
+			if not data.has("torches"):
+				data["torches"] = []
+			data["torches"].append([p.x, p.z])
+			Sfx.play("olov", -14.0, 0.05, 0.3)
+			_msg("Mash'al o'rnatildi")
+			_rebuild()
+		return
 	if tool in ["wall", "moat"]:
 		if not _in_area(sp):
 			_msg("Qurish hududidan tashqarida", true)
@@ -752,6 +1055,12 @@ func _click(p: Vector3) -> void:
 
 func _delete_at(p: Vector3) -> void:
 	var back := {}
+	var tl: Array = data.get("torches", [])
+	for i in tl.size():
+		if _v(tl[i]).distance_to(p) < 2.5:
+			tl.remove_at(i)
+			back = _cost("torch")
+			break
 	for i in data["gates"].size():
 		if _v(data["gates"][i]["p"]).distance_to(p) < 6.0:
 			data["gates"].remove_at(i)
@@ -873,8 +1182,10 @@ func _input_3d(e: InputEvent) -> void:
 			_tdist = clampf(_tdist * 1.15, 18.0, MAX_DIST)
 		elif mb.button_index == MOUSE_BUTTON_MIDDLE:
 			_mid = mb.pressed
+		elif walk_mode and mb.button_index in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]:
+			_walk_mouse(mb)
 		elif mb.button_index == MOUSE_BUTTON_RIGHT:
-			# o'ng tugma: sudrasa - kamerani aylantirish, bossa - bekor qilish
+			# o'ng tugma: sudrasa - kamerani aylantirish, bossa - belgilangan askarlarni yurgizish yoki bekor qilish
 			if mb.pressed:
 				_rmb = true
 				_drag_moved = false
@@ -882,22 +1193,37 @@ func _input_3d(e: InputEvent) -> void:
 			else:
 				_rmb = false
 				if not _drag_moved:
+					if tool == "" and rts and rts.on_right_click(mb.position):
+						return
 					_cancel()
 		elif mb.button_index == MOUSE_BUTTON_LEFT:
-			# chap tugma: sudrasa - xaritani surish, bossa - qurish/tanlash
+			# chap tugma: asbob tanlangan bo'lsa - qurish (sudrash - xaritani surish);
+			# asbobsiz - askarni bosish/ramka chizib belgilash, yerni bosish - belgilanganlarni yurgizish
 			if mb.pressed:
 				_lmb = true
 				_drag_moved = false
 				_press_at = mb.position
+				_dbl = mb.double_click
+				if tool == "" and rts:
+					rts.on_press(mb.position)
 			else:
 				_lmb = false
-				if not _drag_moved:
+				if tool == "" and rts:
+					rts.on_release(mb.position, _drag_moved, mb.shift_pressed, _dbl)
+				elif not _drag_moved:
 					_click(_ground_at(mb.position))
 	elif e is InputEventMouseMotion:
 		var mm := e as InputEventMouseMotion
 		if (_lmb or _rmb) and mm.position.distance_to(_press_at) > 6.0:
 			_drag_moved = true
-		if _mid or (_lmb and _drag_moved):
+		if walk_mode and _lmb and _drag_moved:
+			# qo'mondon: chap tugmani bosib turib sudrash - atrofga 360 gradus qarash
+			cam_yaw -= mm.relative.x * 0.006
+			_walk_drag = true
+			_apply_cam()
+		elif tool == "" and _lmb and _drag_moved and rts and not walk_mode:
+			rts.on_drag(mm.position)
+		elif _mid or (_lmb and _drag_moved):
 			var a := _ground_at(mm.position - mm.relative)
 			var b := _ground_at(mm.position)
 			if a != Vector3.INF and b != Vector3.INF and a.distance_to(b) < 200.0:
@@ -938,6 +1264,9 @@ func _unhandled_key_input(e: InputEvent) -> void:
 	if k == KEY_ESCAPE and walk_mode:
 		_toggle_walk()
 		return
+	if k == KEY_ESCAPE and rts and not rts.sel.is_empty():
+		rts.clear_sel()
+		return
 	if k == KEY_ESCAPE:
 		if tool == "" and not has_start and not _leaving:
 			_leaving = true
@@ -951,6 +1280,10 @@ func _unhandled_key_input(e: InputEvent) -> void:
 
 var _amb_t := 0.0
 var _bell_h := -1
+var _dbl := false
+var _walk_drag := false
+var _cmd_act := ""          # qo'mondon: "attack" / "block"
+var _cmd_act_t := 0.0
 
 
 func _ambience(delta: float) -> void:
@@ -1025,6 +1358,8 @@ func _process(delta: float) -> void:
 		if daynight != null:
 			money_label.text += "   " + daynight.time_text()
 	_update_guards(delta)
+	if rts:
+		rts.update(delta)
 	_update_drill(delta)
 	_army_t += delta
 	if _army_t > 0.4:
@@ -1062,6 +1397,9 @@ func _toggle_walk() -> void:
 		_side_panel.visible = not walk_mode
 	if _tool_panel:
 		_tool_panel.visible = not walk_mode
+	if rts and rts.panel:
+		rts.panel.visible = not walk_mode
+		rts.clear_sel()
 	if walk_mode:
 		_saved_cam = [cam_target, cam_dist, _tdist, cam_yaw]
 		if cmdr.has_meta("tw") and (cmdr.get_meta("tw") as Tween).is_valid():
@@ -1077,6 +1415,7 @@ func _toggle_walk() -> void:
 			_walk_hint.offset_left = -420
 			_walk_hint.offset_right = 420
 			_walk_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			_walk_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			hud.add_child(_walk_hint)
 		_walk_hint.visible = true
 		_msg("Siz qo'mondonsiz: qal'ani aylanib chiqing")
@@ -1129,10 +1468,57 @@ func _walk_play(a: String) -> void:
 		Unit3D.play(cmdr, a)
 
 
+func _walk_mouse(mb: InputEventMouseButton) -> void:
+	## qo'mondon: chap tugma - qurol bilan zarba (bosib turib sudrasa - atrofga qarash), o'ng tugma - qalqon bilan himoya
+	if mb.button_index == MOUSE_BUTTON_LEFT:
+		if mb.pressed:
+			_lmb = true
+			_drag_moved = false
+			_walk_drag = false
+			_press_at = mb.position
+		else:
+			_lmb = false
+			if not _walk_drag:
+				_cmd_attack()
+			_walk_drag = false
+	elif mb.button_index == MOUSE_BUTTON_RIGHT:
+		if mb.pressed:
+			_cmd_act = "block"
+			var rd := Unit3D.rider_of(cmdr)
+			if rd:
+				Unit3D.play(rd, "Ride")
+			else:
+				Unit3D.play(cmdr, "Block")
+			_walk_anim = "Block"
+			Sfx.play("qalqon", -14.0, 0.1, 0.3)
+		else:
+			_cmd_act = ""
+			_walk_anim = ""
+
+
+func _cmd_attack() -> void:
+	if cmdr == null or not is_instance_valid(cmdr) or _cmd_act == "block":
+		return
+	_cmd_act = "attack"
+	_cmd_act_t = 0.9
+	_walk_anim = "Attack"
+	var rd := Unit3D.rider_of(cmdr)
+	if rd:
+		_act(rd, "RideAttack")
+	else:
+		_act(cmdr, "Attack")
+	Sfx.play("silkish", -10.0, 0.1, 0.2)
+
+
 func _walk(delta: float) -> void:
 	if cmdr == null or not is_instance_valid(cmdr):
 		walk_mode = false
 		return
+	if _cmd_act == "attack":
+		_cmd_act_t -= delta
+		if _cmd_act_t <= 0.0:
+			_cmd_act = ""
+			_walk_anim = ""
 	var inp := Vector2.ZERO
 	if Input.is_key_pressed(KEY_A): inp.x -= 1
 	if Input.is_key_pressed(KEY_D): inp.x += 1
@@ -1142,7 +1528,7 @@ func _walk(delta: float) -> void:
 	var run := Input.is_key_pressed(KEY_SHIFT)
 	if inp != Vector2.ZERO:
 		var mv := Basis(Vector3.UP, cam_yaw) * Vector3(inp.x, 0, inp.y).normalized()
-		var sp := (9.0 if run else 4.0) if horse else (4.2 if run else 1.8)
+		var sp := ((9.0 if run else 4.0) if horse else (4.2 if run else 1.8)) * (0.5 if _cmd_act == "block" else 1.0)
 		var np := cmdr.position + mv * sp * delta
 		np = np.clamp(Vector3(-AREA * 1.5, 0, -AREA * 1.5), Vector3(AREA * 1.5, 0, AREA * 1.5))
 		# binolar ichidan o'tmaydi
@@ -1153,11 +1539,17 @@ func _walk(delta: float) -> void:
 				ok = false
 		if _keep().distance_to(np) < FOOT["keep"].x * 0.5 and _keep().distance_to(np) < _keep().distance_to(cmdr.position):
 			ok = false
+		# devor, minora, ark ichidan ham o'tmaydi (yo'l to'ri bo'yicha)
+		if ok and rts and rts.N > 0 and np.y < 1.0:
+			var ci := rts._cell(np)
+			if rts._okc(ci) and rts.astar.is_point_solid(ci) and not rts.astar.is_point_solid(rts._cell(cmdr.position)):
+				ok = false
 		if ok:
 			cmdr.position = np
 		cmdr.rotation.y = lerp_angle(cmdr.rotation.y, atan2(-mv.z, mv.x), 1.0 - exp(-10.0 * delta))
-		_walk_play("Run" if run else "Walk")
-	elif _walk_anim != "Cheer" or not (Unit3D.anim(cmdr) and Unit3D.anim(cmdr).is_playing()):
+		if _cmd_act == "":
+			_walk_play("Run" if run else "Walk")
+	elif _cmd_act == "" and (_walk_anim != "Cheer" or not (Unit3D.anim(cmdr) and Unit3D.anim(cmdr).is_playing())):
 		_walk_play("Idle")
 	cam_target = cam_target.lerp(cmdr.position + Vector3(0, 1.0, 0), 1.0 - exp(-8.0 * delta))
 	var yaw := 0.0
@@ -1172,7 +1564,7 @@ func _walk(delta: float) -> void:
 		if nd.position.distance_to(cmdr.position) < 6.0 and not nd.get_meta("post", false):
 			near += 1
 	if _walk_hint:
-		_walk_hint.text = "QO'MONDON: %s%s\nWASD yurish, Shift yugurish, Q/E qarash  |  1 nayza+qalqon, 2 qilich, 3 otda  |  F ko'zdan kechirish  |  Tab chiqish" % [
+		_walk_hint.text = "QO'MONDON: %s%s\nWASD yurish, Shift yugurish  |  chap tugma - zarba, o'ng tugma - qalqon, chap tugmani bosib sudrash - atrofga qarash  |  1 nayza+qalqon, 2 qilich, 3 otda  |  F ko'zdan kechirish  |  Tab chiqish" % [
 			WALK_NAMES[_walk_weapon], "  -  yaqinda %d askar" % near if near > 0 else ""]
 
 
@@ -1271,7 +1663,17 @@ func _cmd_home() -> Vector3:
 
 
 func _go(n: Node3D, to: Vector3, face: float, run := false, via = null) -> void:
-	## figurani yurgizib olib borish (tween), yetib kelgach yuzini burish
+	## figurani yurgizib olib borish: devor/bino ichidan o'tmaydi (yo'l topiladi); devorga - minora eshigi orqali
+	if rts and rts.N > 0 and not n.get_meta("cmd", false):
+		if via != null:
+			var st := rts._climb_steps(n, to, face)
+			if not st.is_empty():
+				st.append({"k": "release"})
+				rts._start(n, st)
+				n.set_meta("post", true)
+				return
+		elif rts._send(n, to, face, "idle", [{"k": "release"}]):
+			return
 	if n.has_meta("tw"):
 		var old = n.get_meta("tw")
 		if old is Tween and (old as Tween).is_valid():
@@ -1319,6 +1721,8 @@ func _switch_task(t: String) -> void:
 		var node: Node3D = n
 		var k: String = node.get_meta("kind", "")
 		pi = int(float(used) * stepf)
+		if node.get_meta("manual", false):
+			continue
 		if t == "devor" and k in ["nayzachi", "qilichboz", "kamonchi", "sarboz"] and pi < posts.size():
 			var post: Vector3 = posts[pi][0]
 			var foot := Vector3(post.x, 0, post.z) + Vector3(cos(posts[pi][1] + PI), 0, -sin(posts[pi][1] + PI)) * 2.5
@@ -1328,8 +1732,12 @@ func _switch_task(t: String) -> void:
 			continue
 		var was_up: bool = node.position.y > 1.0
 		node.set_meta("post", false)
+		if node.get_meta("manual", false):
+			continue
 		if node.has_meta("slot"):
-			if was_up:
+			if was_up and rts:
+				_go(node, node.get_meta("slot"), face)
+			elif was_up:
 				var down := Vector3(node.position.x, 0, node.position.z) + (_keep() - node.position).normalized() * 2.5
 				down.y = 0.0
 				var tw0 := node.create_tween()
@@ -1362,6 +1770,8 @@ func _update_drill(delta: float) -> void:
 				_beat += 1
 				for n in _all_figs():
 					var node: Node3D = n
+					if node.get_meta("manual", false):
+						continue
 					if node.has_meta("tw") and (node.get_meta("tw") as Tween).is_valid() and (node.get_meta("tw") as Tween).is_running():
 						continue
 					var k: String = node.get_meta("kind", "")
@@ -1406,7 +1816,7 @@ func _update_drill(delta: float) -> void:
 				moving = false
 			for n in _all_figs():
 				var node: Node3D = n
-				if not node.has_meta("slot") or node.get_meta("kind", "") == "top":
+				if not node.has_meta("slot") or node.get_meta("kind", "") == "top" or node.get_meta("manual", false):
 					continue
 				if node.has_meta("tw") and (node.get_meta("tw") as Tween).is_valid() and (node.get_meta("tw") as Tween).is_running():
 					continue
@@ -1603,7 +2013,7 @@ func _tool_card(t: String) -> Button:
 	var b := Button.new()
 	b.toggle_mode = true
 	b.focus_mode = Control.FOCUS_NONE
-	b.custom_minimum_size = Vector2(92, 114)
+	b.custom_minimum_size = Vector2(84, 114)
 	b.add_theme_stylebox_override("pressed", UIKit.style(Color(0.42, 0.29, 0.1, 0.98), 5, Color(1.0, 0.84, 0.4), 4))
 	b.add_theme_stylebox_override("hover_pressed", UIKit.style(Color(0.48, 0.34, 0.12, 0.98), 5, Color(1.0, 0.9, 0.55), 4))
 	b.add_theme_stylebox_override("normal", UIKit.style(UIKit.WOOD2, 5, Color(0.55, 0.4, 0.2, 0.9), 4))
@@ -1798,6 +2208,12 @@ func _build_army_cards() -> void:
 		b.tooltip_text = TASK_TIPS[t]
 		b.button_pressed = data.get("task", "dam") == t
 		b.pressed.connect(func():
+			for nd in _all_figs():
+				if rts:
+					rts.release(nd)
+			if rts:
+				rts.clear_sel()
+			_task_mode = ""
 			data["task"] = t
 			_msg("Qo'mondon: " + TASK_TIPS[t])
 			_show_army())
@@ -2060,6 +2476,8 @@ func _refresh_army(force := false) -> void:
 			node.set_meta("row", i / (ROW_W + 1))
 			node.set_meta("kind", k)
 			i += 3 if k in ["top", "fil", "arava"] else (2 if k == "otliq" else 1)
+			if node.get_meta("manual", false):
+				continue
 			if _initial or not node.get_meta("new", false) and node.position.distance_to(target) < 0.3:
 				node.position = target
 				node.rotation.y = face
@@ -2068,7 +2486,11 @@ func _refresh_army(force := false) -> void:
 				if rd:
 					Unit3D.play(rd, "Ride")
 				continue
-			# yangi askar: kazarma eshigidan saf joyigacha yurib boradi
+			# yangi askar: kazarma eshigidan saf joyigacha yurib boradi (devor va binolarni aylanib)
+			if rts and rts.N > 0:
+				node.set_meta("new", false)
+				if rts._send(node, target, face, "idle", [{"k": "release"}]):
+					continue
 			var d := target - node.position
 			node.rotation.y = atan2(-d.z, d.x)
 			var dur := maxf(0.6, d.length() / (6.0 if k == "otliq" else 3.6))

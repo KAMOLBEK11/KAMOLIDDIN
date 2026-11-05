@@ -8,7 +8,7 @@ const BUILD := {
 	"wall": [8, 2, 0], "moat": [4, 0, 0], "tower": [150, 60, 0], "gate": [250, 80, 40],
 	"barracks": [300, 60, 80], "granary": [180, 20, 60], "well": [60, 30, 0], "smithy": [220, 40, 40], "stable": [260, 20, 100],
 	"farm": [120, 0, 40], "lumber": [100, 0, 0], "quarry": [140, 0, 40], "market": [250, 40, 60], "mint": [400, 80, 40],
-	"mosque": [450, 120, 60], "house": [60, 10, 20],
+	"mosque": [450, 120, 60], "house": [60, 10, 20], "torch": [20, 0, 10],
 }
 const ECON := {
 	"farm": {"name": "Bug'doy maydoni", "prod": {"oziq": 10}, "foot": Vector2(22, 15)},

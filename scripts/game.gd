@@ -222,6 +222,19 @@ func _income_advice() -> void:
 		if jobs(p) < jobs_needed(p):
 			jobs_short += 1
 	var tips: Array = []
+	if era < 4:
+		var gp := 0.0
+		for id in player_provinces():
+			gp += CastleEco.gold(provinces[id])["pay"]
+		if gp > 0.0:
+			tips.append("qo'shin maoshi kuniga %d oltin - ortiqcha askarni kamaytiring" % int(gp))
+		tips.append("qal'ada Bozor (+oltin) va Zarbxona (+ko'p oltin) quring")
+		if Diplo.trade.is_empty():
+			tips.append("qo'shnilar bilan karvon savdosi shartnomasi tuzing (Diplomatiya)")
+		if War.wars.size() > 0:
+			tips.append("urush karvon yo'llarini to'sadi - sulh imkonini ko'ring")
+		message.emit("MASLAHAT (xazina %+d oltin/kun): %s." % [int(inc), "; ".join(tips)], "event")
+		return
 	if upk + army > 60.0:
 		tips.append("armiya va binolar xarajati kuniga %d $ - ortiqcha qo'shinni kamaytiring yoki zavod quring" % int(upk + army))
 	if jobs_short > 0:
@@ -797,6 +810,9 @@ func _random_event() -> void:
 	if mine.is_empty():
 		return
 	var pick := _rng.randi_range(0, 4)
+	if era < 4:
+		_old_event(pick, mine)
+		return
 	match pick:
 		0:
 			price_mult["neft"] = {"mult": 2.0, "days": 20}
@@ -945,3 +961,27 @@ func load_game() -> void:
 	sell_share = data.get("sell_share", {})
 	message.emit("Saqlangan o'yin yuklandi.", "info")
 	changed.emit()
+
+
+func _old_event(pick: int, mine: Array) -> void:
+	## 1-2-zamon uchun tarixiy voqealar (neft inqirozi, ish tashlash kabi zamonaviy voqealar o'rniga)
+	var p: Dictionary = provinces[mine[_rng.randi() % mine.size()]]
+	match pick:
+		0:
+			var g := 150.0 + _rng.randi_range(0, 250)
+			money += g
+			message.emit("Buyuk Ipak yo'lidan katta karvon o'tdi - bojdan xazinaga +%d oltin tushdi." % int(g), "good")
+		1:
+			var lost := minf(float(goods.get("oziq", 0.0)), 80.0 + _rng.randi_range(0, 120))
+			goods["oziq"] = float(goods.get("oziq", 0.0)) - lost
+			message.emit("%s: chigirtka bosdi! Ekinlar zarar ko'rdi, -%d oziq." % [p["name"], int(lost)], "bad")
+		2:
+			p["unrest"] = minf(100.0, p["unrest"] + 15.0)
+			message.emit("%s: dehqonlar soliq og'irligidan norozi! Norozilik +15%%." % p["name"], "bad")
+		3:
+			var bonus := 200.0 + _rng.randi_range(0, 300)
+			money += bonus
+			message.emit("Hosil mo'l bo'ldi! Xazinaga +%d oltin tushdi." % int(bonus), "good")
+		4:
+			message.emit("%s: zilzila bo'ldi! Qal'a devorlari silkindi, xalq qo'rquvda (norozilik +8%%)." % p["name"], "bad")
+			p["unrest"] = minf(100.0, p["unrest"] + 8.0)

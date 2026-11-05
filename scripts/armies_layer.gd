@@ -107,7 +107,7 @@ func _draw_sites(s: float) -> void:
 			var u := Game.site_units(p, st["key"])
 			var tot: float = u["soldier"] + u["tank"]
 			var mp2 := site_map_pos(id, st["key"])
-			if st["type"] == "post":
+			if st["type"] == "post" and Game.era >= 4:
 				_ring(mp2, 10.0 * s, PLAYER_RING, s)
 				_pic(bpics.get("post"), mp2 + Vector2(0, -6) * s, 26.0 * s)
 			if tot < 1.0:
@@ -132,7 +132,7 @@ func _draw_sites(s: float) -> void:
 					draw_rect(Rect2(-4, -4, 8, 8), Color(0, 0, 0, 0.8), false, 1.2)
 					draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	# dushman chegara postlari
-	for pair in War.hostile_borders():
+	for pair in (War.hostile_borders() if Game.era >= 4 else []):
 		var ep := Game.border_point(pair[0], pair[1])
 		_ring(ep, 9.0 * s, ENEMY_RING, s)
 		_pic(bpics.get("post"), ep + Vector2(0, -6) * s, 22.0 * s, 0.9)

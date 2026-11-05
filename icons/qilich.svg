@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- ikki kesishgan qilich (qadimiy hujum belgisi) -->
+    <path d="M12 52 C22 40 34 26 50 10" stroke="#e8e2d0" stroke-width="5"/>
+    <path d="M52 52 C42 40 30 26 14 10" stroke="#e8e2d0" stroke-width="5"/>
+    <path d="M12 52 C22 40 34 26 50 10" stroke="#9aa0a8" stroke-width="2"/>
+    <path d="M52 52 C42 40 30 26 14 10" stroke="#9aa0a8" stroke-width="2"/>
+    <path d="M9 44 L20 55" stroke="#d4a43a" stroke-width="5"/>
+    <path d="M55 44 L44 55" stroke="#d4a43a" stroke-width="5"/>
+    <path d="M10 54 L5 59" stroke="#6b4423" stroke-width="5"/>
+    <path d="M54 54 L59 59" stroke="#6b4423" stroke-width="5"/>
+  </g>
+</svg>

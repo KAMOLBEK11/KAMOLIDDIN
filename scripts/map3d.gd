@@ -505,6 +505,12 @@ func _build_labels() -> void:
 		sums[p["country"]][0] += p["center"]
 		sums[p["country"]][1] += 1
 		var l := _label(p["name"], 48, Color(1, 1, 1, 0.95), to3(p["center"], 1.2), 0.012)
+		# viloyat nomi ekranda doim o'qiladigan kattalikda (yaqinlashtirganda mayda bo'lib qolmaydi)
+		l.fixed_size = true
+		l.pixel_size = 0.00062
+		l.font_size = 40
+		l.outline_size = 12
+		l.set_meta("prio", float(p["population"]))
 		add_child(l)
 		labels_prov.append(l)
 		l.set_meta("id", id)
@@ -513,6 +519,7 @@ func _build_labels() -> void:
 		# kichik davlatlar nomi kichikroq yoziladi - Yevropadagi mayda davlatlar bir-birini yopmaydi
 		var px := 0.022 + 0.008 * minf(float(sums[c][1]), 8.0)
 		var l2 := _label(Game.countries[c]["name"].to_upper(), 96, Color(1, 1, 1, 0.9), to3(pos, 6.0), px)
+		l2.set_meta("prio", float(sums[c][1]) * 1000.0)
 		add_child(l2)
 		labels_country.append(l2)
 
@@ -688,7 +695,14 @@ func _on_changed() -> void:
 		for st in Game.site_list(p):
 			var u := Game.site_units(p, st["key"])
 			var mp: Vector2 = army_layer.site_map_pos(id, st["key"])
-			if st["type"] == "post":
+			if st["type"] == "post" and Game.era < 4:
+				# eski davrda chegara posti o'rniga bizning bayrog'imiz hilpirab turadi (Kazaki uslubida)
+				var sf := Unit3D.standard(gold, 4.6)
+				sf.scale = Vector3.ONE * 0.75
+				sf.position = to3(mp)
+				sf.set_meta("player_flag", true)
+				sites_root.add_child(sf)
+			elif st["type"] == "post":
 				var pm := _model("buildings/post", 1.6)
 				if pm:
 					pm.position = to3(mp)
@@ -716,7 +730,7 @@ func _on_changed() -> void:
 		std.position = to3(cc + Vector2(_prov_radius(cap) * 0.22, -_prov_radius(cap) * 0.18))
 		std.set_meta("player_flag", true)
 		sites_root.add_child(std)
-	for pair in War.hostile_borders():
+	for pair in (War.hostile_borders() if Game.era >= 4 else []):
 		var ep: Vector2 = Game.border_point(pair[0], pair[1])
 		var em := _model("buildings/post", 1.5)
 		if em:
@@ -1017,11 +1031,7 @@ func _apply_cam() -> void:
 	cam.position = g + Vector3(0, sin(pitch), cos(pitch)) * d
 	cam.look_at(g, Vector3.UP)
 	_globe_mode(gk)
-	var show_prov := zoom >= 1.3
-	for l in labels_prov:
-		l.visible = show_prov
-	for l in labels_country:
-		l.visible = not show_prov and zoom >= FLAT_Z
+	_cull_t = 0.0        # yozuvlar ko'rinishi _process da (ustma-ust tushganlari yashiriladi)
 	sites_root.visible = zoom >= 0.55
 
 
@@ -1063,8 +1073,6 @@ func _globe_mode(gk: float) -> void:
 		_env.background_color = Color(0.0, 0.0, 0.01)
 		_env.fog_enabled = not space
 		_env.glow_intensity = 0.6 if space else 0.35
-	for l in labels_country:
-		l.visible = zoom >= FLAT_Z and zoom < 1.3
 	armies_root.visible = bend < 0.15
 	air_root.visible = bend < 0.15
 	for l in labels_country:
@@ -1074,7 +1082,62 @@ func _globe_mode(gk: float) -> void:
 		l.position = base - Vector3(0, bend * dxz.length_squared() / (2.0 * globe_r), 0)
 
 
+var _cull_t := 0.0
+
+
+func _cull_labels(arr: Array) -> void:
+	## bir-birining ustiga chiqqan yozuvlar: kattaroq davlat / viloyat nomi qoladi, kichigi yashiriladi
+	var vis: Array = []
+	for l in arr:
+		if (l as Label3D).visible:
+			vis.append(l)
+	for l in vis:
+		# o'yinchining viloyatlari nomi har doim ko'rinadi
+		var lid: String = l.get_meta("id", "")
+		var own: bool = lid != "" and Game.provinces.has(lid) and Game.provinces[lid]["owner"] == Game.PLAYER
+		l.set_meta("prio2", float(l.get_meta("prio", 0.0)) + (1e12 if own else 0.0))
+	vis.sort_custom(func(a, b): return float(a.get_meta("prio2", 0.0)) > float(b.get_meta("prio2", 0.0)))
+	var taken: Array = []
+	var right := cam.global_transform.basis.x
+	for l in vis:
+		var lb: Label3D = l
+		var p: Vector3 = lb.global_position
+		if cam.is_position_behind(p):
+			continue
+		var sp := cam.unproject_position(p)
+		var hw: float
+		var hh: float
+		if lb.fixed_size:
+			var vh := get_viewport().get_visible_rect().size.y
+			hw = lb.text.length() * lb.font_size * 0.3 * lb.pixel_size * vh * 2.1 + 6.0
+			hh = lb.font_size * lb.pixel_size * vh * 1.25
+		else:
+			var w3: float = lb.text.length() * lb.font_size * lb.pixel_size * 0.55
+			hw = absf(cam.unproject_position(p + right * w3 * 0.5).x - sp.x)
+			hw *= 1.15
+			hh = hw / maxf(1.0, lb.text.length() * 0.55) * 1.5
+		var r := Rect2(sp - Vector2(hw, hh * 0.5), Vector2(hw * 2.0, hh))
+		var hit := false
+		for t in taken:
+			if (t as Rect2).intersects(r):
+				hit = true
+				break
+		if hit:
+			lb.visible = false
+		else:
+			taken.append(r)
+
+
 func _process(delta: float) -> void:
+	_cull_t -= delta
+	if _cull_t <= 0.0 and cam:
+		_cull_t = 0.2
+		var show_prov := zoom >= 1.3
+		for l in labels_prov:
+			l.visible = show_prov
+		for l in labels_country:
+			l.visible = not show_prov and zoom >= FLAT_Z
+		_cull_labels(labels_prov if show_prov else labels_country)
 	# globus aylanishi (faqat kosmosdan qaralganda), yaqinlashganda o'z joyiga qaytadi
 	if zoom < GLOBE_Z * 0.85:
 		_spin += delta * 0.08
