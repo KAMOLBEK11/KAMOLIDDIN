@@ -160,7 +160,7 @@ static func _model_path(faction: String, kind: String) -> String:
 
 static func soldier(faction: String, kind: String, team := Color("#2f7d4a"), knight := false) -> Node3D:
 	if kind == "top":
-		return cannon(team)
+		return cannon(team, faction)
 	var path := _model_path(faction, kind)
 	if faction == "yevropa" and kind == "qilichboz" and (knight or randf() < KNIGHT_SHARE):
 		path = "res://models/era1/yevropa_ritser.glb"
@@ -216,13 +216,55 @@ static func _alias_anims(ap: AnimationPlayer, kind: String) -> void:
 			lib.add_animation(our, ap.get_animation(src))
 
 
-static func cannon(team := Color("#2f7d4a")) -> Node3D:
+## qamal quroli / to'p jamoasi: [x, z, burilish(rad), vazifa]. Qurol +X ga qaragan.
+const CREW := {
+	"top": [[-1.4, 1.5, -0.6, "komandir"], [1.7, 0.95, PI, "o'qlovchi"], [-2.3, 0.35, 0.0, "nishonchi"], [-0.7, -1.35, 0.2, "otuvchi"]],
+	"taran": [[-1.9, 0.55, 0.0, "itaruvchi"], [-1.9, -0.55, 0.0, "itaruvchi"], [-0.6, 0.55, 0.0, "tebratuvchi"], [-0.6, -0.55, 0.0, "tebratuvchi"],
+		[0.7, 0.55, 0.0, "tebratuvchi"], [0.7, -0.55, 0.0, "tebratuvchi"]],
+	"manjaniq": [[-3.2, 1.9, 0.0, "tortuvchi"], [-3.2, -1.9, 0.0, "tortuvchi"], [-2.5, 2.4, 0.3, "tortuvchi"], [-5.5, 0.8, -0.4, "tosh tashuvchi"],
+		[1.5, 2.2, -1.2, "ilgakchi"]],
+}
+
+
+static func add_crew(node: Node3D, faction: String, team: Color, type: String) -> void:
+	if faction == "" or not CREW.has(type):
+		return
+	var crew: Array = []
+	for c in CREW[type]:
+		var k := "sarboz" if Game.era == 2 else ("nayzachi" if type == "taran" else "qilichboz")
+		var s := soldier(faction, k, team)
+		if s == null:
+			continue
+		node.add_child(s)
+		s.position = Vector3(c[0], 0, c[1])
+		s.rotation.y = c[2]
+		s.set_meta("role", c[3])
+		if type == "taran":
+			s.scale = Vector3.ONE * 0.95
+		play(s, "Idle")
+		crew.append(s)
+	node.set_meta("crew", crew)
+
+
+static func crew_play(node: Node3D, a: String, role := "", restart := false) -> void:
+	for s in node.get_meta("crew", []):
+		if is_instance_valid(s) and (role == "" or (s as Node3D).get_meta("role", "") == role):
+			var ap := anim(s)
+			if ap and ap.has_animation(a):
+				if restart:
+					ap.stop()
+				if restart or ap.current_animation != a:
+					ap.play(a, 0.15)
+
+
+static func cannon(team := Color("#2f7d4a"), faction := "") -> Node3D:
 	## 2-zamon to'pi: yog'och lafet, ikki g'ildirak, bronza stvol. Stvol (Barrel) +X ga qaragan.
 	var sc := _scene("res://models/siege/top.glb")
 	if sc:
 		var mo: Node3D = sc.instantiate()
 		recolor(mo, team)
 		mo.set_meta("cannon", true)
+		add_crew(mo, faction, team, "top")
 		return mo
 	var root := Node3D.new()
 	var wood := StandardMaterial3D.new()

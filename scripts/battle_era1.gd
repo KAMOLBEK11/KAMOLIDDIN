@@ -638,6 +638,27 @@ const FORMS := [["", "Oddiy (Z)", "oddiy saf", ["qilichboz", "nayzachi", "kamonc
 	["volley", "O'q yomg'iri / zalp (V)", "butun bo'linma buyruq bilan birga otadi", ["kamonchi", "sarboz"]],
 	["loose", "Tarqoq saf (B)", "keng yoyilgan saf: o'q va to'p kamroq tegadi", ["qilichboz", "nayzachi", "kamonchi", "sarboz", "otliq"]]]
 var form_row: HBoxContainer
+var fire_btn: Button
+
+
+func _toggle_fire() -> void:
+	if sel < 0 or regs[sel]["kind"] != "kamonchi":
+		tip_label.text = "Olovli o'q uchun kamonchilar bo'linmasini tanlang."
+		return
+	var r: Dictionary = regs[sel]
+	r["fire"] = not r.get("fire", false)
+	if r["fire"]:
+		# bitta askar mash'ala ushlab turadi - hamma o'qini shundan yoqadi
+		for fi in r["figs"]:
+			if figs[fi]["alive"]:
+				r["torch"] = BattleFX.flame(figs[fi]["node"], Vector3(0.35, 1.35, 0.25), 0.9, 16)
+				break
+		tip_label.text = "Kamonchilar olovli o'q otmoqda!"
+	else:
+		if r.has("torch") and is_instance_valid(r["torch"]):
+			(r["torch"] as Node).queue_free()
+		tip_label.text = "Kamonchilar oddiy o'qqa qaytdi."
+	_refresh_form_btns()
 var form_btns := {}
 
 
@@ -670,6 +691,9 @@ func _refresh_form_btns() -> void:
 		var ok: bool = sel >= 0 and regs[sel]["kind"] in fd[3]
 		b.disabled = not ok
 		b.add_theme_color_override("font_color", Color("#ffd166") if ok and regs[sel].get("form", "") == fd[0] else Color("#f1e4c8"))
+	if fire_btn:
+		fire_btn.disabled = not (sel >= 0 and regs[sel]["kind"] == "kamonchi")
+		fire_btn.add_theme_color_override("font_color", Color("#ff9a4a") if sel >= 0 and regs[sel].get("fire", false) else Color("#f1e4c8"))
 
 
 func _slot(r: Dictionary, idx: int) -> Vector3:
@@ -1059,6 +1083,8 @@ func _unhandled_key_input(e: InputEvent) -> void:
 			_select(-1)
 		elif k == KEY_SPACE and phase == "deploy":
 			_begin()
+		elif k == KEY_N:
+			_toggle_fire()
 		elif k in [KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B]:
 			_set_form(FORMS[[KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B].find(k)][0])
 
@@ -1476,7 +1502,7 @@ func _shoot(f: Dictionary, e: Dictionary) -> void:
 		# miltiq o'qi: tez va to'g'ri uchadi, og'izdan oq tutun chiqadi
 		a.scale = Vector3(0.25, 0.25, 0.25)
 		var muzzle: Vector3 = from + (to - from).normalized() * 1.3
-		_smoke(muzzle)
+		BattleFX.muzzle(world, muzzle, (to - from).normalized(), false)
 		arrows.append({"node": a, "from": muzzle, "to": to, "t": 0.0, "dur": from.distance_to(to) / 220.0, "target": e["i"],
 			"flat": true, "dmg": st["bullet"], "chance": st["chance"], "shooter_gun": f.get("gun", 0)})
 		return
@@ -1484,7 +1510,10 @@ func _shoot(f: Dictionary, e: Dictionary) -> void:
 	if f["kind"] == "kamonchi" and not f.get("cmd", false):
 		# kamonchi avval o'qni oladi, torni tortadi - o'q animatsiyadagi "qo'yib yuborish" paytida (1.2 s) uchadi
 		a.visible = false
-		arrows.append({"node": a, "from": from, "to": to, "t": 0.0, "dur": dur, "target": e["i"], "wait": 1.18, "shooter": f["i"]})
+		var fire: bool = regs[f["reg"]].get("fire", false)
+		if fire:
+			BattleFX.flame(a, Vector3.ZERO, 0.45, 8)
+		arrows.append({"node": a, "from": from, "to": to, "t": 0.0, "dur": dur, "target": e["i"], "wait": 1.18, "shooter": f["i"], "fire": fire})
 		return
 	arrows.append({"node": a, "from": from, "to": to, "t": 0.0, "dur": dur, "target": e["i"]})
 
@@ -1518,13 +1547,33 @@ func _cannon_shot(f: Dictionary, to: Vector3, seg: int) -> void:
 	## to'p o'qi: past yoy bilan uchadi, tushgan joyda bir nechta askarni uradi (seg >= 0 - qal'a devori)
 	var node: Node3D = f["node"]
 	var barrel: Node3D = node.get_node_or_null("Barrel")
-	if barrel:
+	var body: Node3D = node.get_node_or_null("Body")
+	if barrel and body:
+		# o'q uzilganda butun to'p orqaga dumalaydi, jamoa uni qayta joyiga itaradi
+		for part in [body, barrel]:
+			var x0: float = 0.0 if part == body else 0.15
+			var twr := (part as Node3D).create_tween()
+			twr.tween_property(part, "position:x", x0 - 1.1, 0.12).set_ease(Tween.EASE_OUT)
+			twr.tween_interval(1.0)
+			twr.tween_property(part, "position:x", x0, 2.2)
+	elif barrel:
 		var tw := barrel.create_tween()
 		tw.tween_property(barrel, "position:x", 0.15 - 0.45, 0.08)
 		tw.tween_property(barrel, "position:x", 0.15, 0.9)
+	if node.has_meta("crew"):
+		Unit3D.crew_play(node, "Attack", "otuvchi", true)
+		Unit3D.crew_play(node, "Cheer", "komandir", true)
+		Unit3D.crew_play(node, "Block", "nishonchi", true)
+		get_tree().create_timer(1.2).timeout.connect(func():
+			if is_instance_valid(node):
+				Unit3D.crew_play(node, "Attack", "o'qlovchi", true)       # shompol bilan tozalab, o'q tiqadi
+				Unit3D.crew_play(node, "Walk", "nishonchi", true))         # to'pni joyiga itaradi
+		get_tree().create_timer(3.4).timeout.connect(func():
+			if is_instance_valid(node):
+				Unit3D.crew_play(node, "Idle"))
 	var dir := Vector3(to.x - f["pos"].x, 0, to.z - f["pos"].z).normalized()
 	var muzzle: Vector3 = f["pos"] + Vector3(0, 1.0, 0) + dir * 1.6
-	_smoke(muzzle, true)
+	BattleFX.muzzle(world, muzzle, dir, true)
 	var ball := MeshInstance3D.new()
 	var sm := SphereMesh.new()
 	sm.radius = 0.18
@@ -1567,9 +1616,15 @@ func _update_arrows(dt: float) -> void:
 			node.rotate_object_local(Vector3.UP, PI / 2.0)
 		if k >= 1.0:
 			arrows.erase(ar)
+			if ar.has("dmg"):
+				BattleFX.bullet_hit(world, ar["to"])
+			elif ar.get("fire", false):
+				BattleFX._ball(world, ar["to"], Color(1.0, 0.6, 0.2, 0.9), 0.1, 0.5, 0.3)
 			if ar["target"] >= 0:
 				var e: Dictionary = figs[ar["target"]]
 				var cover := 0.5 if e.get("layer", "ground") == "wall" else 1.0
+				if ar.get("fire", false):
+					cover *= 1.25       # olovli o'q - qo'rquv va kuyish
 				if e.get("layer", "ground") == "wall" and not _ranged(e["kind"]) and e.get("state", "") == "":
 					cover = 0.12      # devordagi piyoda tishli parapet ortiga yashirinadi
 				# qalqonli piyodaga o'q kamroq o'tadi
@@ -1808,6 +1863,10 @@ func _build_hud() -> void:
 		fb.focus_mode = Control.FOCUS_NONE
 		fb.tooltip_text = fd[2]
 		form_btns[fd[0]] = fb
+	if Game.era == 1:
+		fire_btn = UIKit.button(form_row, "Olovli o'q (N)", "", _toggle_fire)
+		fire_btn.focus_mode = Control.FOCUS_NONE
+		fire_btn.tooltip_text = "kamonchilar o'q uchiga yonuvchi qorishma bog'lab, mash'aladan yoqib otadi: taran va manjaniqni yoqib yuboradi"
 	cmd_panel = PanelContainer.new()
 	cmd_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	cmd_panel.offset_left = -330
@@ -2848,13 +2907,13 @@ func _spawn_engines() -> void:
 		disc.material_override = _disc_mats[att_side]
 		disc.position.y = 0.1
 		node.add_child(disc)
-		engines.append({"i": i, "type": t, "name": defs[i][1], "node": node, "pos": p, "hp": 10.0 if t == "taran" else 8.0,
+		engines.append({"i": i, "type": t, "name": defs[i][1], "node": node, "pos": p, "hp": 10.0 if t == "taran" else 8.0, "max_hp": 10.0 if t == "taran" else 8.0,
 			"max": 10.0 if t == "taran" else 8.0, "target": cs["gate"] if t == "taran" else -1, "cd": 3.0, "disc": disc, "go": false})
 
 
 func _engine_model(t: String) -> Node3D:
 	if t == "top":
-		var cn := Unit3D.cannon(colors[att_side])
+		var cn := Unit3D.cannon(colors[att_side], fac[att_side])
 		cn.scale = Vector3.ONE * 1.3
 		return cn
 	# Blender modellari: qarshi yukli manjaniq va teri bilan yopilgan taran
@@ -2863,6 +2922,7 @@ func _engine_model(t: String) -> Node3D:
 		var mo: Node3D = load(mp).instantiate()
 		FX.pbr(mo)
 		Unit3D.recolor(mo, colors[att_side])
+		Unit3D.add_crew(mo, fac[att_side], colors[att_side], t)
 		return mo
 	var root := Node3D.new()
 	var wood := _eng_mat
@@ -2988,13 +3048,22 @@ func _update_engines(dt: float) -> void:
 		var node: Node3D = e["node"]
 		# devordagi kamonchilar qamal qurollarini o'qqa tutadi
 		var archers := 0
+		var fire_n := 0
 		for f in figs:
 			if f["alive"] and f["side"] == def_side and _ranged(f["kind"]) and Vector2(f["pos"].x - e["pos"].x, f["pos"].z - e["pos"].z).length() < 70.0:
 				archers += 1
-		e["hp"] -= archers * 0.012 * dt
+				if regs[f["reg"]].get("fire", false):
+					fire_n += 1
+		e["hp"] -= (archers + fire_n * 2) * 0.012 * dt       # olovli o'q yog'och qurolni 3 barobar tez yoqadi
+		if fire_n > 0 and not node.has_meta("burning") and e["hp"] < float(e.get("max_hp", 10.0)) * 0.8:
+			node.set_meta("burning", true)
+			for fp in [Vector3(-1.0, 2.5, 0.6), Vector3(1.2, 3.2, -0.4), Vector3(0.0, 1.5, 0.0)]:
+				BattleFX.flame(node, fp, 2.2, 22)
+			tip_label.text = "%s yonmoqda!" % e["name"]
 		if e["hp"] <= 0.0:
 			var tw := node.create_tween()
 			tw.tween_property(node, "rotation:z", 0.5, 0.8)
+			Unit3D.crew_play(node, "Death1", "", true)
 			(e["disc"] as Node3D).visible = false
 			tip_label.text = "%s yo'q qilindi!" % e["name"]
 			continue
@@ -3014,6 +3083,7 @@ func _update_engines(dt: float) -> void:
 			if rg != goal:
 				d = Vector2(rg.x - e["pos"].x, rg.z - e["pos"].z) + d.normalized() * 0.7
 			if d.length() > 0.6:
+				Unit3D.crew_play(node, "Walk")         # jamoa taranni itarib boradi
 				var sp := 2.2 * (0.35 if absf(e["pos"].x - river_x(e["pos"].z)) < 9.0 and not is_ford(e["pos"].z) else 1.0)
 				var step := d.normalized() * minf(d.length(), sp * dt)
 				e["pos"] += Vector3(step.x, 0, step.y)
@@ -3023,6 +3093,10 @@ func _update_engines(dt: float) -> void:
 			elif e["cd"] <= 0.0:
 				e["cd"] = 2.0
 				sg["hp"] -= 1.0
+				# xodani zanjirda orqaga tortib, bir zarb bilan oldinga uradi
+				Unit3D.crew_play(node, "Attack", "tebratuvchi", true)
+				Unit3D.crew_play(node, "Block", "itaruvchi")
+				BattleFX.wall_hit(world, c + Vector3(0, 2.0, 0), out)
 				var lg: Node3D = node.get_node_or_null("Log")
 				if lg:
 					var tw2 := lg.create_tween()
@@ -3056,6 +3130,18 @@ func _update_engines(dt: float) -> void:
 			if d2.length() <= 200.0 and e["cd"] <= 0.0:
 				e["cd"] = 6.5
 				var arm: Node3D = node.get_node_or_null("Arm")
+				if node.has_meta("crew"):
+					# ilgakchi ilgakni ochadi; keyin tortuvchilar chig'ir bilan yelkani qayta pastga tortadi, tosh tashuvchi yangi tosh olib keladi
+					Unit3D.crew_play(node, "Attack", "ilgakchi", true)
+					Unit3D.crew_play(node, "Cheer", "tortuvchi", true)
+					for tt in [1.0, 1.8, 2.6, 3.4]:
+						get_tree().create_timer(tt).timeout.connect(func():
+							if is_instance_valid(node):
+								Unit3D.crew_play(node, "Attack", "tortuvchi", true))
+					Unit3D.crew_play(node, "Walk", "tosh tashuvchi")
+					get_tree().create_timer(4.2).timeout.connect(func():
+						if is_instance_valid(node):
+							Unit3D.crew_play(node, "Idle"))
 				if arm:
 					var tw3 := arm.create_tween()
 					if node.get_node_or_null("Body") != null:
@@ -3093,7 +3179,10 @@ func _update_stones(dt: float) -> void:
 				for f in figs:
 					if f["alive"] and f["pos"].distance_to(b) < float(st.get("r", 3.5)):
 						_hit(f, float(st.get("dmg", 1.5)) * _rng.randf_range(0.6, 1.2))
-				_dust_puff(b)
+				if Game.era == 2:
+					BattleFX.explosion(world, Vector3(b.x, h_at(b.x, b.z), b.z), true)
+				else:
+					_dust_puff(b)
 				continue
 			var sg: Dictionary = cs["segs"][st["seg"]]
 			if _rng.randf() < 0.8 and sg["hp"] > 0.0:
@@ -3110,7 +3199,9 @@ func _update_stones(dt: float) -> void:
 			for f in figs:
 				if f["alive"] and f["pos"].distance_to(b) < 3.5:
 					_hit(f, 1.5)
-			_dust_puff(b)
+			BattleFX.wall_hit(world, b, _outward(_wall_point(b)))
+			if Game.era == 2:
+				BattleFX.explosion(world, b, false)
 
 
 func _breach(sg: Dictionary) -> void:
