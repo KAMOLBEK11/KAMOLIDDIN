@@ -166,6 +166,75 @@ func _style(bg: Color, radius := 8, border := Color(0, 0, 0, 0)) -> StyleBoxFlat
 
 
 func _make_theme() -> Theme:
+	if Game.era < 4:
+		return _make_hist_theme()
+	return _make_glass_theme()
+
+
+func _hist_box(bg: Color, border: Color, radius := 4, bw := 2) -> StyleBoxFlat:
+	var s := StyleBoxFlat.new()
+	s.bg_color = bg
+	s.set_corner_radius_all(radius)
+	s.border_color = border
+	s.set_border_width_all(bw)
+	s.content_margin_left = 10
+	s.content_margin_right = 10
+	s.content_margin_top = 5
+	s.content_margin_bottom = 5
+	return s
+
+
+func _make_hist_theme() -> Theme:
+	## Tarixiy mavzu (1400 / 1865): yong'oq yog'och panellar, oltin (jez) hoshiya, lojuvard va oltin tugmalar,
+	## Alegreya matn shrifti va Cinzel sarlavhalar
+	var t := Theme.new()
+	if ResourceLoader.exists("res://fonts/alegreya.woff2"):
+		t.default_font = load("res://fonts/alegreya.woff2")
+	t.default_font_size = 16
+	var panel := _hist_box(UIKit.WOOD, UIKit.BRASS, 5, 2)
+	panel.shadow_color = Color(0, 0, 0, 0.4)
+	panel.shadow_size = 6
+	panel.content_margin_left = 12
+	panel.content_margin_right = 12
+	panel.content_margin_top = 8
+	panel.content_margin_bottom = 8
+	t.set_stylebox("panel", "PanelContainer", panel)
+	t.set_stylebox("normal", "Button", _hist_box(UIKit.WOOD2, Color(0.55, 0.4, 0.2, 0.9)))
+	t.set_stylebox("hover", "Button", _hist_box(Color(0.33, 0.23, 0.13, 0.98), Color(0.95, 0.76, 0.38)))
+	t.set_stylebox("pressed", "Button", _hist_box(Color("#c9a03a"), Color("#f3dc9a")))
+	t.set_stylebox("hover_pressed", "Button", _hist_box(Color("#d8b04a"), Color("#fff0b8")))
+	t.set_stylebox("disabled", "Button", _hist_box(Color(0.12, 0.09, 0.06, 0.7), Color(0.35, 0.27, 0.16, 0.5)))
+	t.set_stylebox("focus", "Button", StyleBoxEmpty.new())
+	t.set_color("font_color", "Button", Color("#f1e4c8"))
+	t.set_color("font_hover_color", "Button", Color("#fff6dc"))
+	t.set_color("font_pressed_color", "Button", Color("#24180c"))
+	t.set_color("font_hover_pressed_color", "Button", Color("#24180c"))
+	t.set_color("font_disabled_color", "Button", Color(0.95, 0.88, 0.75, 0.32))
+	t.set_color("font_color", "Label", Color("#efe2c6"))
+	t.set_constant("icon_max_width", "Button", 26)
+	t.set_font_size("font_size", "Label", 15)
+	t.set_font_size("font_size", "Button", 15)
+	t.set_stylebox("background", "ProgressBar", _hist_box(Color(0, 0, 0, 0.35), Color(0.5, 0.38, 0.2, 0.6), 3, 1))
+	t.set_stylebox("fill", "ProgressBar", _hist_box(Color("#b8462e"), Color(0, 0, 0, 0), 3, 0))
+	t.set_stylebox("panel", "PopupPanel", panel)
+	t.set_stylebox("panel", "AcceptDialog", panel)
+	t.set_stylebox("panel", "TooltipPanel", _hist_box(Color(0.93, 0.86, 0.7, 0.97), Color(0.45, 0.32, 0.16), 3, 1))
+	t.set_color("font_color", "TooltipLabel", Color("#2a1c0e"))
+	t.set_stylebox("panel", "TabContainer", _style(Color(0, 0, 0, 0.0), 4))
+	t.set_stylebox("tab_selected", "TabContainer", _hist_box(Color(0.36, 0.25, 0.13), UIKit.BRASS))
+	t.set_stylebox("tab_unselected", "TabContainer", _hist_box(UIKit.WOOD2, Color(0.45, 0.33, 0.18, 0.7)))
+	t.set_stylebox("tab_hovered", "TabContainer", _hist_box(Color(0.3, 0.21, 0.12), Color(0.9, 0.7, 0.35)))
+	t.set_stylebox("slider", "HSlider", _hist_box(Color(0, 0, 0, 0.35), Color(0.5, 0.38, 0.2, 0.6), 3, 1))
+	t.set_stylebox("grabber_area", "HSlider", _hist_box(Color("#c9a03a"), Color(0, 0, 0, 0), 3, 0))
+	t.set_stylebox("grabber_area_highlight", "HSlider", _hist_box(Color("#e0b850"), Color(0, 0, 0, 0), 3, 0))
+	var sep := StyleBoxLine.new()
+	sep.color = Color(0.78, 0.6, 0.3, 0.45)
+	sep.thickness = 2
+	t.set_stylebox("separator", "HSeparator", sep)
+	return t
+
+
+func _make_glass_theme() -> Theme:
 	## Glassmorphism mavzusi: shaffof to'q panellar, nozik yorug' chegaralar, yumshoq burchaklar
 	var t := Theme.new()
 	var panel := _style(Color(0.06, 0.09, 0.13, 0.55), 14, Color(0.6, 0.8, 1.0, 0.22))

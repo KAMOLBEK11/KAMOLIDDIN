@@ -11,6 +11,43 @@ const CARD2 := Color(1, 1, 1, 0.06)
 const ACCENT := Color(0.24, 0.47, 0.75, 0.85)
 
 
+## ---- tarixiy uslub (1- va 2-zamon): yong'oq-jigarrang panellar, oltin hoshiya, lojuvard tugmalar, Cinzel sarlavhalar
+const WOOD := Color(0.15, 0.105, 0.07, 0.88)
+const WOOD2 := Color(0.24, 0.17, 0.11, 0.95)
+const BRASS := Color(0.78, 0.6, 0.3, 0.8)
+const LAPIS := Color("#1f4e8c")
+static var _title_font: Font = null
+
+
+static func hist() -> bool:
+	return Game.era < 4
+
+
+static func title_font() -> Font:
+	if _title_font == null and ResourceLoader.exists("res://fonts/cinzel.woff2"):
+		_title_font = load("res://fonts/cinzel.woff2")
+	return _title_font
+
+
+static func _h(c: Color, border := false) -> Color:
+	## zamonaviy "shisha" ranglarini tarixiy ranglarga almashtirish
+	if not hist():
+		return c
+	if border:
+		if c.b > c.r + 0.05:
+			return Color(BRASS.r, BRASS.g, BRASS.b, clampf(c.a * 2.6, 0.35, 0.9))
+		return c
+	if c.v < 0.3 and c.b > c.r + 0.02:
+		if c.a < 0.6:
+			return Color(0.09, 0.065, 0.045, 0.7)      # ichki karta - to'qroq
+		return Color(WOOD.r, WOOD.g, WOOD.b, maxf(c.a, 0.86))
+	if absf(c.r - 0.24) < 0.02 and absf(c.b - 0.75) < 0.02:     # ACCENT
+		return LAPIS
+	if c.is_equal_approx(Color(1, 1, 1, 0.06)) or c.is_equal_approx(Color(1, 1, 1, 0.07)):
+		return Color(1.0, 0.85, 0.6, 0.07)
+	return c
+
+
 static func flag(code: String, w := 60.0) -> TextureRect:
 	var t := TextureRect.new()
 	var path := "res://icons/flags/%s.svg" % code
@@ -54,6 +91,8 @@ static func label(text: String, size := 15, color := INFO, wrap := false) -> Lab
 	l.text = text
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", color)
+	if size >= 18 and hist() and title_font() != null:
+		l.add_theme_font_override("font", title_font())
 	if wrap:
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -62,11 +101,16 @@ static func label(text: String, size := 15, color := INFO, wrap := false) -> Lab
 
 static func style(bg: Color, radius := 10, border := Color(0, 0, 0, 0), pad := 10) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
-	s.bg_color = bg
-	s.set_corner_radius_all(radius)
+	s.bg_color = _h(bg)
+	s.set_corner_radius_all(mini(radius, 5) if hist() else radius)
+	if hist() and border.a <= 0.0 and bg.a > 0.5 and _h(bg) != bg:
+		border = Color(0.5, 0.38, 0.2, 0.6)
 	if border.a > 0.0:
 		s.set_border_width_all(2)
-		s.border_color = border
+		s.border_color = _h(border, true)
+	if hist() and bg.a > 0.5 and s.bg_color.v < 0.3:
+		s.shadow_color = Color(0, 0, 0, 0.35)
+		s.shadow_size = 4
 	s.content_margin_left = pad
 	s.content_margin_right = pad
 	s.content_margin_top = pad * 0.7
@@ -130,7 +174,10 @@ static func button(parent: Control, text: String, why: String, cb: Callable, acc
 	b.text = text
 	b.disabled = why != ""
 	b.tooltip_text = why
-	if accent:
+	if accent and hist():
+		b.add_theme_stylebox_override("normal", style(LAPIS, 5, BRASS, 8))
+		b.add_theme_stylebox_override("hover", style(LAPIS.lightened(0.18), 5, Color(1.0, 0.82, 0.45), 8))
+	elif accent:
 		b.add_theme_stylebox_override("normal", style(ACCENT, 8, Color(0, 0, 0, 0), 8))
 		b.add_theme_stylebox_override("hover", style(Color(0.35, 0.6, 1.0, 0.95), 8, Color(0.7, 0.85, 1.0, 0.7), 8))
 	b.pressed.connect(cb)

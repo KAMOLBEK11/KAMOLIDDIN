@@ -104,14 +104,17 @@ func _p() -> Dictionary:
 	return Game.provinces[prov_id]
 
 
+func _model_file(n: String) -> String:
+	## musulmon davlatlarda O'rta Osiyo uslubidagi gumbazli binolar (models/castle_isl)
+	var isl := "res://models/castle_isl/%s.glb" % n
+	if (Unit3D.is_muslim(_p()["country"]) or not ResourceLoader.exists("res://models/castle/%s.glb" % n)) and ResourceLoader.exists(isl):
+		return isl
+	return "res://models/castle/%s.glb" % n
+
+
 func _scene(n: String) -> PackedScene:
 	if not _scenes.has(n):
-		# musulmon davlatlarda O'rta Osiyo uslubidagi gumbazli binolar (models/castle_isl)
-		var isl := "res://models/castle_isl/%s.glb" % n
-		if (Unit3D.is_muslim(_p()["country"]) or not ResourceLoader.exists("res://models/castle/%s.glb" % n)) and ResourceLoader.exists(isl):
-			_scenes[n] = load(isl)
-		else:
-			_scenes[n] = load("res://models/castle/%s.glb" % n)
+		_scenes[n] = load(_model_file(n))
 	return _scenes[n]
 
 
@@ -1015,7 +1018,7 @@ func _build_hud() -> void:
 	side.offset_left = -330
 	side.offset_right = -8
 	side.offset_top = 70
-	side.offset_bottom = -178
+	side.offset_bottom = -186
 	side.add_theme_stylebox_override("panel", UIKit.style(Color(0.05, 0.08, 0.12, 0.6), 12, Color(0.6, 0.8, 1.0, 0.22), 12))
 	hud.add_child(side)
 	var sv := UIKit.scroll(side)
@@ -1032,37 +1035,46 @@ func _build_hud() -> void:
 	tb.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	tb.offset_left = 8
 	tb.offset_right = -8
-	tb.offset_top = -170
+	tb.offset_top = -176
 	tb.offset_bottom = -8
 	tb.add_theme_stylebox_override("panel", UIKit.style(Color(0.05, 0.08, 0.12, 0.65), 12, Color(0.6, 0.8, 1.0, 0.22), 10))
 	hud.add_child(tb)
 	var tv := VBoxContainer.new()
 	tb.add_child(tv)
-	for rowdef in [["QAL'A", ROW1], ["XO'JALIK", ROW2]]:
+	# chap: bo'lim tugmalari, o'ng: binolar 3D rasmlari bilan
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 10)
+	tv.add_child(hb)
+	var tabs := VBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 6)
+	hb.add_child(tabs)
+	var tgrp := ButtonGroup.new()
+	var rows: Array = []
+	for ri in 2:
+		var rowdef: Array = [["QAL'A", ROW1], ["XO'JALIK", ROW2]][ri]
+		var tbn := Button.new()
+		tbn.text = rowdef[0]
+		tbn.toggle_mode = true
+		tbn.button_group = tgrp
+		tbn.button_pressed = ri == 0
+		tbn.focus_mode = Control.FOCUS_NONE
+		tbn.custom_minimum_size = Vector2(104, 50)
+		if UIKit.title_font() != null:
+			tbn.add_theme_font_override("font", UIKit.title_font())
+		tbn.add_theme_font_size_override("font_size", 14)
+		tabs.add_child(tbn)
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 6)
-		tv.add_child(row)
-		var rl := UIKit.label(rowdef[0], 12, UIKit.DIM)
-		rl.custom_minimum_size = Vector2(62, 0)
-		row.add_child(rl)
+		row.visible = ri == 0
+		hb.add_child(row)
+		rows.append(row)
+		tbn.pressed.connect(func():
+			for i in rows.size():
+				(rows[i] as Control).visible = i == ri)
 		for t in rowdef[1]:
 			if t == "mosque" and not Unit3D.is_muslim(_p()["country"]):
 				continue
-			var b := Button.new()
-			var ct := "" if t == "delete" else CastleEco.cost_text(_cost(t))
-			ct = ct.replace(" oltin", "o").replace(" tosh", "t").replace(" yog'och", "y")
-			b.text = "%s\n%s%s" % [NAMES[t], ct, "/m" if t in ["wall", "moat"] else ""]
-			if CastleEco.ECON.has(t):
-				var pr: Dictionary = CastleEco.ECON[t]["prod"]
-				b.tooltip_text = "Kuniga: +%d %s" % [pr.values()[0], CastleEco.RES_NAMES[pr.keys()[0]].to_lower()]
-			b.toggle_mode = true
-			b.focus_mode = Control.FOCUS_NONE
-			b.add_theme_font_size_override("font_size", 12)
-			b.custom_minimum_size = Vector2(94, 48)
-			b.clip_text = true
-			b.pressed.connect(_set_tool.bind(t))
-			row.add_child(b)
-			tool_btns[t] = b
+			row.add_child(_tool_card(t))
 	tip_label = UIKit.label("Asbobni tanlang. G'ildirak - yaqinlashtirish, WASD / o'rta tugma - surish, Q/E - aylantirish, R - binoni burish.", 13, UIKit.INFO)
 	tv.add_child(tip_label)
 	msg_label = UIKit.label("", 14, UIKit.GOOD)
@@ -1072,6 +1084,63 @@ func _build_hud() -> void:
 	msg_label.offset_right = 300
 	msg_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hud.add_child(msg_label)
+
+
+func _tool_card(t: String) -> Button:
+	## qurilish tugmasi: binoning 3D rasmi, nomi va narxi
+	var b := Button.new()
+	b.toggle_mode = true
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(92, 114)
+	b.add_theme_stylebox_override("pressed", UIKit.style(Color(0.42, 0.29, 0.1, 0.98), 5, Color(1.0, 0.84, 0.4), 4))
+	b.add_theme_stylebox_override("hover_pressed", UIKit.style(Color(0.48, 0.34, 0.12, 0.98), 5, Color(1.0, 0.9, 0.55), 4))
+	b.add_theme_stylebox_override("normal", UIKit.style(UIKit.WOOD2, 5, Color(0.55, 0.4, 0.2, 0.9), 4))
+	b.add_theme_stylebox_override("hover", UIKit.style(Color(0.33, 0.23, 0.13, 0.98), 5, Color(0.95, 0.76, 0.38), 4))
+	var v := VBoxContainer.new()
+	v.set_anchors_preset(Control.PRESET_FULL_RECT)
+	v.offset_left = 3
+	v.offset_right = -3
+	v.offset_top = 3
+	v.offset_bottom = -3
+	v.add_theme_constant_override("separation", 0)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(v)
+	if t == "delete":
+		var x := UIKit.label("×", 44, Color("#e0644a"))
+		x.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		x.custom_minimum_size = Vector2(84, 60)
+		x.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		v.add_child(x)
+	else:
+		var img := TextureRect.new()
+		img.custom_minimum_size = Vector2(84, 60)
+		img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		img.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.add_child(img)
+		var col := Color(Game.countries[_p()["country"]]["color"]) if Game.countries.has(_p()["country"]) else Color("#2f7d4a")
+		ModelPreview.thumb(_model_file(t), img, col)
+	var nl := UIKit.label(NAMES[t], 14, Color("#f6e7c4"))
+	nl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	nl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(nl)
+	var ct := "" if t == "delete" else CastleEco.cost_text(_cost(t))
+	ct = ct.replace(" oltin", "o").replace(" tosh", "t").replace(" yog'och", "y").replace(" + ", " ")
+	if t in ["wall", "moat"]:
+		ct += " /m"
+	var cl := UIKit.label(ct if t != "delete" else "yarmi qaytadi", 11, Color("#d9b870"))
+	cl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cl.clip_text = true
+	v.add_child(cl)
+	if CastleEco.ECON.has(t):
+		var pr: Dictionary = CastleEco.ECON[t]["prod"]
+		b.tooltip_text = "%s: kuniga +%d %s" % [NAMES[t], pr.values()[0], CastleEco.RES_NAMES[pr.keys()[0]].to_lower()]
+	else:
+		b.tooltip_text = NAMES[t]
+	b.pressed.connect(_set_tool.bind(t))
+	tool_btns[t] = b
+	return b
 
 
 func _set_tool(t: String) -> void:
@@ -1170,29 +1239,79 @@ func _close() -> void:
 
 # ================================================================ qo'shin: yollash va hovlida saf
 
+var _army_cards := {}       # tur -> {"count": Label, "btns": {n: Button}, "cost": Label}
+var _army_sum: Label
+var _army_dyn: VBoxContainer
+
+
+func _build_army_cards() -> void:
+	## yollash kartalari bir marta quriladi (har birida askarning jonli 3D ko'rinishi)
+	UIKit.clear(army_box)
+	_army_cards.clear()
+	army_box.add_child(UIKit.label("QO'SHIN", 20, Color("#f3d58a")))
+	_army_sum = UIKit.label("", 12, UIKit.INFO, true)
+	army_box.add_child(_army_sum)
+	var fac := Unit3D.faction_for(_p()["country"])
+	var col := Color(Game.countries[_p()["country"]]["color"]) if Game.countries.has(_p()["country"]) else Color("#2f7d4a")
+	for k in CastleEco.units():
+		var u: Dictionary = CastleEco.units()[k]
+		var pc := PanelContainer.new()
+		pc.add_theme_stylebox_override("panel", UIKit.style(Color(0.09, 0.065, 0.045, 0.75), 5, Color(0.55, 0.4, 0.2, 0.7), 4))
+		army_box.add_child(pc)
+		var h := HBoxContainer.new()
+		h.add_theme_constant_override("separation", 6)
+		pc.add_child(h)
+		var view := ModelPreview.unit_view(fac, k, col, Vector2(92, 112))
+		view.tooltip_text = "%s - sichqonchani olib keling" % u["name"]
+		h.add_child(view)
+		var v := VBoxContainer.new()
+		v.add_theme_constant_override("separation", 2)
+		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		h.add_child(v)
+		var nm := UIKit.label(u["name"], 18, Color("#f6e7c4"))
+		nm.add_theme_font_size_override("font_size", 15)
+		v.add_child(nm)
+		var cnt := UIKit.label("", 13, Color.WHITE)
+		v.add_child(cnt)
+		var cost := UIKit.label("", 11, Color("#d9b870"), true)
+		v.add_child(cost)
+		var br := UIKit.row(v, 4)
+		var btns := {}
+		for n in [1, 5, 10]:
+			var b := UIKit.button(br, "+%d" % n, "", _recruit.bind(k, n))
+			b.focus_mode = Control.FOCUS_NONE
+			b.custom_minimum_size = Vector2(44, 28)
+			btns[n] = b
+		_army_cards[k] = {"count": cnt, "btns": btns, "cost": cost}
+	_army_dyn = VBoxContainer.new()
+	_army_dyn.add_theme_constant_override("separation", 6)
+	army_box.add_child(_army_dyn)
+
+
 func _show_army() -> void:
 	if army_box == null:
 		return
-	UIKit.clear(army_box)
+	if _army_cards.is_empty() or not is_instance_valid(_army_sum):
+		_build_army_cards()
 	var p := _p()
-	army_box.add_child(UIKit.label("QO'SHIN", 18, Color.WHITE))
 	var g := CastleEco.gold(p)
-	army_box.add_child(UIKit.label("Jami: %d askar (kuch %d).  Maosh: %d oltin/kun, oziq: %.0f/kun" % [CastleEco.army_total(p),
-		int(CastleEco.army_power(p)), int(g["pay"]), _food_per_day()], 12, UIKit.INFO, true))
-	for k in CastleEco.units():
+	_army_sum.text = "Jami: %d askar (kuch %d).  Maosh: %d oltin/kun, oziq: %.0f/kun" % [CastleEco.army_total(p),
+		int(CastleEco.army_power(p)), int(g["pay"]), _food_per_day()]
+	for k in _army_cards:
 		var u: Dictionary = CastleEco.units()[k]
-		var row := UIKit.row(army_box, 4)
-		var l := UIKit.label("%s: %d" % [u["name"], int(data["army"][k])], 14, Color.WHITE)
-		l.custom_minimum_size = Vector2(110, 0)
-		row.add_child(l)
-		for n in [1, 5, 10]:
+		var c: Dictionary = _army_cards[k]
+		(c["count"] as Label).text = "Qal'ada: %d" % int(data["army"][k])
+		(c["cost"] as Label).text = "%d oltin, %d oziq, %d kun  (%s)" % [CastleEco.unit_cost(p, k), u["food"], u["days"],
+			CastleEco.NEED_NAMES.get(u["needs"], u["needs"])]
+		for n in c["btns"]:
 			var why := CastleEco.can_recruit(p, k, n)
-			var b := UIKit.button(row, "+%d" % n, why, _recruit.bind(k, n))
-			b.focus_mode = Control.FOCUS_NONE
-		army_box.add_child(UIKit.label("   %d oltin + %d oziq, %d kun (%s)" % [CastleEco.unit_cost(p, k), u["food"], u["days"],
-			CastleEco.NEED_NAMES.get(u["needs"], u["needs"])], 11, UIKit.DIM))
+			var b: Button = c["btns"][n]
+			b.disabled = why != ""
+			b.tooltip_text = why if why != "" else "%d ta yollash" % n
+	UIKit.clear(_army_dyn)
+	var ab := _army_dyn
 	# josuslar: dushman hujumini oldindan bilish, dushman qal'alari haqida ma'lumot
-	var srow := UIKit.row(army_box, 4)
+	var srow := UIKit.row(ab, 4)
 	var sl := UIKit.label("Josuslar: %d" % Game.spies, 14, Color.WHITE)
 	sl.custom_minimum_size = Vector2(110, 0)
 	srow.add_child(sl)
@@ -1203,12 +1322,12 @@ func _show_army() -> void:
 			_msg(e, true)
 		_show_army())
 	sb.focus_mode = Control.FOCUS_NONE
-	army_box.add_child(UIKit.label("   %d oltin, maoshi %.1f oltin/kun. Dushman hujumini %s oldin bilasiz, qal'alarini ko'rasiz." % [SiegeCastle.SPY_COST, SiegeCastle.SPY_PAY,
+	ab.add_child(UIKit.label("   %d oltin, maoshi %.1f oltin/kun. Dushman hujumini %s oldin bilasiz, qal'alarini ko'rasiz." % [SiegeCastle.SPY_COST, SiegeCastle.SPY_PAY,
 		"bir necha kun" if Game.spies == 0 else "%d kun ko'proq" % (2 * Game.spies + 2)], 11, UIKit.DIM, true))
 	if not data["queue"].is_empty():
-		army_box.add_child(UIKit.label("Tayyorlanmoqda:", 13, UIKit.GOLD))
+		ab.add_child(UIKit.label("Tayyorlanmoqda:", 13, UIKit.GOLD))
 		for q in data["queue"]:
-			army_box.add_child(UIKit.label("   %d %s - %d kun qoldi" % [q["count"], CastleEco.units()[q["kind"]]["name"].to_lower(), q["days_left"]], 12, UIKit.INFO))
+			ab.add_child(UIKit.label("   %d %s - %d kun qoldi" % [q["count"], CastleEco.units()[q["kind"]]["name"].to_lower(), q["days_left"]], 12, UIKit.INFO))
 	var prod := {}
 	for b in data["buildings"]:
 		if CastleEco.ECON.has(b["t"]):
@@ -1218,7 +1337,7 @@ func _show_army() -> void:
 	var parts: Array = []
 	for r in prod:
 		parts.append("+%d %s" % [prod[r], CastleEco.RES_NAMES[r].to_lower()])
-	army_box.add_child(UIKit.label("Xo'jalik kuniga: " + (", ".join(parts) if parts.size() else "hali yo'q - pastdagi XO'JALIK qatoridan quring"), 12, UIKit.GOOD if parts.size() else UIKit.GOLD, true))
+	ab.add_child(UIKit.label("Xo'jalik kuniga: " + (", ".join(parts) if parts.size() else "hali yo'q - pastdagi XO'JALIK qatoridan quring"), 12, UIKit.GOOD if parts.size() else UIKit.GOLD, true))
 
 
 func _food_per_day() -> float:

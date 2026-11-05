@@ -148,6 +148,8 @@ func _make_label(text: String, size: int) -> Node2D:
 	l.size = Vector2(300, 30)
 	l.position = Vector2(-150, -15)
 	l.add_theme_font_size_override("font_size", size)
+	if Game.era < 4 and ResourceLoader.exists("res://fonts/alegreya_bold.woff2"):
+		l.add_theme_font_override("font", load("res://fonts/alegreya_bold.woff2"))
 	l.add_theme_color_override("font_color", Color(1, 1, 1, 0.95))
 	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	l.add_theme_constant_override("outline_size", 5)

@@ -477,6 +477,8 @@ func _label(text: String, size: int, col: Color, pos: Vector3, pix := 0.04) -> L
 	var l := Label3D.new()
 	l.text = text
 	l.font_size = size
+	if Game.era < 4 and ResourceLoader.exists("res://fonts/alegreya_bold.woff2"):
+		l.font = load("res://fonts/alegreya_bold.woff2")      # tarixiy xarita yozuvi
 	l.outline_size = int(size / 4.0)
 	l.outline_modulate = Color(0, 0, 0, 0.85)
 	l.modulate = col
