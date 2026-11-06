@@ -987,7 +987,7 @@ def build_soldier(faction, kind):
     # qurol turi bo'yicha qo'l holatlari
     if RIFLE:
         AIMP = {'Head': (0, 12, 8), 'Neck': (0, 0, 0), 'Chest': (0, 0, 8), 'Spine': (0, 0, 4)}
-        READY = {'Rifle': (0, -50, 35), 'RifleLoc': (-0.12, 0.03, -0.34), 'Chest': (0, 0, -5)}
+        READY = {'Rifle': (0, -38, 38), 'RifleLoc': (-0.08, 0.06, -0.5), 'Chest': (0, 0, -5)}     # miltiq ko'krak oldida qiya (qo'llar tabiiy, tirsaklar pastda)
         WIND = {'Rifle': (0, -10, 0), 'RifleLoc': (-0.3, 0.0, -0.32), 'Chest': (0, -4, 10)}
         STRIKE = {'Rifle': (0, 6, 0), 'RifleLoc': (0.22, 0.0, -0.3), 'Spine': (0, 14, 0), 'Chest': (0, 6, 0)}
         BLOCK = {'Rifle': (0, 0, 90), 'RifleLoc': (0.02, -0.12, -0.04), 'Chest': (0, -4, 0)}

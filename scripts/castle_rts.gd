@@ -606,7 +606,7 @@ func _tb_slots(n: int, at: Vector3, fwd: Vector3, hole: bool) -> Array:
 		rows = int(ceil(float(n + 1) / cols))
 	if hole and rows < 3:
 		rows = 3
-	var sp := 1.3            # qalqonlar bir-biriga kirib ketmasin
+	var sp := tb_gap         # jips (1.08) - qalqonlar chetma-chet; oddiy 1.3; tarqoq 1.8
 	var res: Array = []
 	var cr := rows / 2
 	var cc := cols / 2
@@ -629,6 +629,23 @@ func _tb_slots(n: int, at: Vector3, fwd: Vector3, hole: bool) -> Array:
 	# chet joylarni avval to'ldiramiz (askar kam bo'lsa ham atrof yopiq bo'lsin)
 	res.sort_custom(func(a, b): return int(a[2]) > int(b[2]))
 	return res.slice(0, n)
+
+
+var tb_gap := 1.3
+
+
+func testudo_gap(g: float) -> void:
+	## toshbaqa safini jipslash / tarqatish (belgilangan askarlar qayta saflanadi)
+	tb_gap = g
+	var list := _valid_sel()
+	if list.is_empty():
+		c._msg("Avval askarlarni belgilang", true)
+		return
+	var around := false
+	for n in list:
+		if (n as Node3D).get_meta("follow", false):
+			around = true
+	order_testudo(around, list)
 
 
 func order_testudo(around_cmd := false, list: Array = []) -> void:
@@ -992,7 +1009,7 @@ func _apply_stance(nd: Node3D, s: String) -> void:
 		ShieldPose.set_up(nd, true)
 		return
 	if s == "tb_out":
-		Unit3D.play(nd, "Block")
+		Unit3D.play(nd, "Idle")            # chetdagilar ham tik turadi, qalqon ko'krak oldida (hammasi bir xil)
 		if nd.has_meta("sp_up"):
 			nd.remove_meta("sp_up")
 			ShieldPose.set_up(nd, false)
@@ -1125,6 +1142,8 @@ func _build_ui() -> void:
 	_btn(g1, "Halqa", func(): order_form("ring"))
 	_btn(g1, "TOSHBAQA", func(): order_testudo(false))
 	_btn(g1, "Qo'mondon toshbaqada", func(): order_testudo(true))
+	_btn(g1, "Jipslash", func(): testudo_gap(1.08))
+	_btn(g1, "Tarqatish", func(): testudo_gap(1.8))
 	var g2 := _grid(cmd_box, "HOLAT")
 	_btn(g2, "Qalqon bilan himoya", func(): order_stance("block"))
 	_btn(g2, "Hujumga shay", func(): order_stance("attack"))

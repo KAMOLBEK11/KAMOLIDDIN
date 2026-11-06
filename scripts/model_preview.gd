@@ -170,6 +170,11 @@ class _UnitView extends SubViewportContainer:
 			model = Unit3D.soldier(faction, k, team)
 			cam.position = Vector3(9.0, 4.4, 6.4) if k == "fil" else Vector3(7.0, 3.0, 5.0)
 			cam.look_at_from_position(cam.position, Vector3(0.3, 2.0 if k == "fil" else 0.9, 0))
+		elif k == "taran" or k == "manjaniq":
+			var ep := "res://models/siege/%s.glb" % k
+			model = (load(ep) as PackedScene).instantiate() if ResourceLoader.exists(ep) else null
+			cam.position = Vector3(11.0, 6.0, 9.0) if k == "manjaniq" else Vector3(8.0, 4.0, 6.5)
+			cam.look_at_from_position(cam.position, Vector3(0, 2.4 if k == "manjaniq" else 1.2, 0))
 		elif k == "top":
 			model = Unit3D.cannon(team)
 			cam.position = Vector3(3.6, 2.0, 3.0)

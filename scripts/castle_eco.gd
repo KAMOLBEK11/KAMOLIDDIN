@@ -9,6 +9,7 @@ const BUILD := {
 	"barracks": [300, 60, 80], "granary": [180, 20, 60], "well": [60, 30, 0], "smithy": [220, 40, 40], "stable": [260, 20, 100],
 	"farm": [120, 0, 40], "lumber": [100, 0, 0], "quarry": [140, 0, 40], "market": [250, 40, 60], "mint": [400, 80, 40],
 	"mosque": [450, 120, 60], "house": [60, 10, 20], "torch": [20, 0, 10],
+	"ustaxona": [280, 20, 140],
 }
 const ECON := {
 	"farm": {"name": "Bug'doy maydoni", "prod": {"oziq": 10}, "foot": Vector2(22, 15)},
@@ -26,6 +27,9 @@ const UNITS1 := {
 	"otliq": {"name": "Otliq", "cost": 70, "food": 8, "days": 4, "needs": "stable", "power": 2.2},
 	"fil": {"name": "Jangovar fil", "cost": 240, "food": 20, "days": 8, "needs": "stable", "power": 7.0, "only": ["hind", "afrika"]},
 	"arava": {"name": "Jangovar arava", "cost": 120, "food": 9, "days": 5, "needs": "stable", "power": 3.2, "only": ["yunon"]},
+	"narvonchi": {"name": "Narvonchi", "cost": 22, "food": 3, "days": 2, "needs": "ustaxona", "power": 0.8},
+	"taran": {"name": "Taran", "cost": 180, "food": 6, "days": 6, "needs": "ustaxona", "power": 3.0},
+	"manjaniq": {"name": "Manjaniq", "cost": 260, "food": 6, "days": 8, "needs": "ustaxona", "power": 3.0},
 }
 ## 2-zamon (1865): miltiqli sarboz, nayzachi, otliq, to'p
 const UNITS2 := {
@@ -34,9 +38,9 @@ const UNITS2 := {
 	"otliq": {"name": "Otliq", "cost": 65, "food": 8, "days": 4, "needs": "stable", "power": 2.2},
 	"top": {"name": "To'p", "cost": 160, "food": 6, "days": 6, "needs": "smithy", "power": 6.0},
 }
-const NEED_NAMES := {"barracks": "kazarma", "stable": "otxona", "smithy": "temirchi (quyuvxona)"}
+const NEED_NAMES := {"barracks": "kazarma", "stable": "otxona", "smithy": "temirchi (quyuvxona)", "ustaxona": "qamal ustaxonasi"}
 ## 1 askar ekvivalenti (xarita urushidagi "soldier" soni, maosh va oziq uchun)
-const EQ := {"otliq": 2.0, "top": 4.0, "fil": 6.0, "arava": 3.0}
+const EQ := {"otliq": 2.0, "top": 4.0, "fil": 6.0, "arava": 3.0, "taran": 3.0, "manjaniq": 3.0}
 
 
 static func units() -> Dictionary:

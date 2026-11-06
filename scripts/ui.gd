@@ -420,7 +420,9 @@ func _build_top_bar(root: Control) -> void:
 	menu.flat = false
 	menu.get_popup().add_item("Saqlash", 0)
 	menu.get_popup().add_item("Yuklash", 1)
-	menu.get_popup().id_pressed.connect(func(mid): Game.save_game() if mid == 0 else Game.load_game())
+	menu.get_popup().add_separator()
+	menu.get_popup().add_item("Bosh menyu (zamonni tanlash)", 2)
+	menu.get_popup().id_pressed.connect(_menu_pick)
 	h.add_child(menu)
 	# yuqori panel sig'ishi uchun tugmalar ixchamroq
 	for ch in h.get_children():
@@ -766,6 +768,17 @@ func _build_log(root: Control) -> void:
 	log_box.alignment = BoxContainer.ALIGNMENT_END
 	log_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(log_box)
+
+
+func _menu_pick(mid: int) -> void:
+	if mid == 0:
+		Game.save_game()
+	elif mid == 1:
+		Game.load_game()
+	elif mid == 2:
+		Game.save_game()          # o'yin saqlanadi - keyin "davom ettirish" bilan qaytish mumkin
+		Game.set_speed(0)
+		get_tree().change_scene_to_file("res://scenes/menu.tscn")
 
 
 func _army_icon() -> Texture2D:

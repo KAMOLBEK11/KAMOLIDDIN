@@ -15,6 +15,7 @@ var _hd := -1
 var _sb := -1                # qalqon bog'langan suyak
 var _n_local := Vector3.ZERO # qalqon yuzining normali (shu suyak fazosida)
 var _ready_b := false
+var _gem := false            # Gemini modeli (qalqon Offhand_Mount suyagida)
 var _fwd_cache := Vector3.ZERO
 
 
@@ -70,6 +71,7 @@ func _bones(sk: Skeleton3D) -> void:
 	var f := _fwd(sk)
 	var mt := sk.find_bone("Offhand_Mount")
 	if mt >= 0:
+		_gem = true
 		_sb = mt
 		_n_local = sk.get_bone_global_rest(mt).basis.inverse() * f
 		return
@@ -135,9 +137,22 @@ func _process_modification() -> void:
 		_aim(sk, _fa, _hd, (f * 0.75 - lft * 0.55 + up * 0.25).normalized(), kf)
 		_face(sk, f, kf)
 	if amount > 0.001:
-		_aim(sk, _ua, _fa, (up + f * 0.15).normalized(), amount)
-		_aim(sk, _fa, _hd, (up + f * 0.05).normalized(), amount)
-		_face(sk, (up + f * 0.25).normalized(), amount)
+		# toshbaqa: yelka tepaga, bilak boshi ustida ko'ndalang (qalqon tagida) - qo'l qalqondan chiqmaydi
+		if not _gem:
+			# Blender modellari: qalqon musht oldida (bilak yo'nalishida) - bilak tepaga, qalqon boshi ustida yotadi
+			_aim(sk, _ua, _fa, (up + f * 0.15).normalized(), amount)
+			_aim(sk, _fa, _hd, (up + f * 0.05).normalized(), amount)
+		else:
+			_aim(sk, _ua, _fa, (up * 0.8 + f * 0.3 + lft * 0.3).normalized(), amount)
+			_aim(sk, _fa, _hd, (-lft * 0.85 + f * 0.3 + up * 0.08).normalized(), amount)
+		_face(sk, (up + f * 0.12).normalized(), amount)
+		if _gem and _hd >= 0:
+			# Gemini: qalqon mushtdan biroz yuqorida turadi - qo'l qalqon tagida qoladi, teshib chiqmaydi
+			var g := sk.get_bone_global_pose(_sb)
+			var hp := sk.get_bone_global_pose(_hd).origin
+			g.origin = g.origin.lerp(hp + up * 0.42, amount)
+			sk.set_bone_global_pose(_sb, g)
+			sk.force_update_bone_child_transform(_sb)
 
 
 func _face(sk: Skeleton3D, want: Vector3, k: float) -> void:
@@ -162,6 +177,7 @@ func _face(sk: Skeleton3D, want: Vector3, k: float) -> void:
 		q = Quaternion(cur, want) if cur.dot(want) > -0.999 else Quaternion(Vector3.UP, PI)
 	var nb := Basis(Quaternion.IDENTITY.slerp(q, k)) * g.basis
 	sk.set_bone_global_pose(_sb, Transform3D(nb, g.origin))
+	sk.force_update_bone_child_transform(_sb)
 
 
 func _aim(sk: Skeleton3D, b: int, child: int, want: Vector3, k: float) -> void:
@@ -178,3 +194,4 @@ func _aim(sk: Skeleton3D, b: int, child: int, want: Vector3, k: float) -> void:
 	var q := Quaternion(cur, want) if cur.dot(want) > -0.999 else Quaternion(Vector3.FORWARD, PI)
 	var nb := Basis(Quaternion.IDENTITY.slerp(q, k)) * g.basis
 	sk.set_bone_global_pose(b, Transform3D(nb, g.origin))
+	sk.force_update_bone_child_transform(b)

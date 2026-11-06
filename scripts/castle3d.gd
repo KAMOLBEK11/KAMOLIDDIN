@@ -14,8 +14,8 @@ const TOWER_COVER := 24.0           # minoradagi kamonchilar devorni shu masofag
 const NAMES := {"wall": "Devor", "moat": "Xandaq", "tower": "Minora", "gate": "Darvoza", "barracks": "Kazarma",
 	"granary": "Ombor", "well": "Quduq", "smithy": "Temirchi", "stable": "Otxona", "delete": "Buzish",
 	"farm": "Bug'doy", "lumber": "O'tinxona", "quarry": "Tosh koni", "market": "Bozor", "mint": "Zarbxona",
-	"mosque": "Masjid", "house": "Uylar", "torch": "Mash'al"}
-const ROW1 := ["wall", "tower", "gate", "moat", "barracks", "granary", "well", "smithy", "stable", "mosque", "torch", "delete"]
+	"mosque": "Masjid", "house": "Uylar", "torch": "Mash'al", "ustaxona": "Qamal ustaxonasi"}
+const ROW1 := ["wall", "tower", "gate", "moat", "barracks", "granary", "well", "smithy", "stable", "ustaxona", "mosque", "torch", "delete"]
 const ROW2 := ["farm", "lumber", "quarry", "market", "mint", "house"]
 const MAX_FIG := 160
 const ROW_W := 10          # saf kengligi (figura)
@@ -28,7 +28,7 @@ const TIPS := {"wall": "Devor: 1-bosish - boshlanish, keyingi bosishlar - devorn
 const FOOT := {"barracks": Vector2(17, 9), "granary": Vector2(11, 9), "well": Vector2(4, 3), "smithy": Vector2(9, 7),
 	"stable": Vector2(15, 8), "keep": Vector2(24, 24), "farm": Vector2(22, 15), "lumber": Vector2(12, 10),
 	"quarry": Vector2(14, 12), "market": Vector2(16, 12), "mint": Vector2(11, 11),
-	"mosque": Vector2(17, 15), "house": Vector2(7, 8)}
+	"mosque": Vector2(17, 15), "house": Vector2(7, 8), "ustaxona": Vector2(15, 11)}
 const SECT := ["Shimol", "Sharq", "Janub", "G'arb"]
 
 var prov_id := ""
@@ -79,6 +79,7 @@ var _g_half := 0
 var rts: CastleRTS             # askarlarni sichqoncha bilan boshqarish
 var _gate_doors: Array = []
 var _bld_box: Array = []       # binolarning haqiqiy o'lchami (lokal AABB)
+var _bld_pts: Array = []       # binolar yuzasidagi nuqtalar (lokal) - mash'alni devorga yopishtirish uchun
 
 
 # ================================================================ boshlash
@@ -114,6 +115,8 @@ func _p() -> Dictionary:
 
 func _model_file(n: String) -> String:
 	## davlat madaniyatiga xos qal'a (kreml, ritsar qal'asi, xitoy, arab, bastion) va binolar
+	if n == "ustaxona":
+		return "res://models/castle/ustaxona.glb" if ResourceLoader.exists("res://models/castle/ustaxona.glb") else Unit3D.castle_file(_p()["country"], "lumber")
 	return Unit3D.castle_file(_p()["country"], n)
 
 
@@ -362,6 +365,66 @@ func _flame(s: float) -> CPUParticles3D:
 	return p
 
 
+func _door_mesh(at: Vector3, yaw: float, w: float, h: float) -> void:
+	## yog'och eshik (temir tasmalar bilan) va uning ustidagi tosh ravoq
+	var root := Node3D.new()
+	root.position = at
+	root.rotation.y = yaw
+	build_root.add_child(root)
+	var wood := StandardMaterial3D.new()
+	wood.albedo_color = Color("#5a3a1e")
+	var leaf := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(w, h, 0.18)
+	leaf.mesh = bm
+	leaf.material_override = wood
+	leaf.position.y = h * 0.5
+	root.add_child(leaf)
+	var iron := StandardMaterial3D.new()
+	iron.albedo_color = Color("#2a2826")
+	iron.metallic = 0.7
+	for yy in [0.25, 0.75]:
+		var band := MeshInstance3D.new()
+		var bb := BoxMesh.new()
+		bb.size = Vector3(w + 0.04, 0.1, 0.22)
+		band.mesh = bb
+		band.material_override = iron
+		band.position.y = h * yy
+		root.add_child(band)
+	var arch := MeshInstance3D.new()
+	var ab := BoxMesh.new()
+	ab.size = Vector3(w + 0.5, 0.35, 0.3)
+	arch.mesh = ab
+	var am := StandardMaterial3D.new()
+	am.albedo_color = Color("#9a8a6a")
+	arch.material_override = am
+	arch.position.y = h + 0.17
+	root.add_child(arch)
+
+
+func _tower_doors(tp: Vector3) -> void:
+	## minora: pastda hovli tomonga eshik; tepada devor yo'laklariga chiqadigan eshiklar
+	var r := 3.25
+	var inn := _keep() - tp
+	inn.y = 0
+	inn = inn.normalized() if inn.length() > 0.1 else Vector3(0, 0, 1)
+	_door_mesh(tp + inn * r, atan2(inn.x, inn.z), 1.6, 2.6)
+	for w in data["walls"]:
+		var a := _v(w["a"])
+		var b := _v(w["b"])
+		var other := Vector3.INF
+		if a.distance_to(tp) < 3.5:
+			other = b
+		elif b.distance_to(tp) < 3.5:
+			other = a
+		if other == Vector3.INF:
+			continue
+		var d := (other - tp)
+		d.y = 0
+		d = d.normalized()
+		_door_mesh(tp + d * r + Vector3(0, WALL_H + 0.05, 0), atan2(d.x, d.z), 1.4, 2.2)
+
+
 func _pole_torch(p: Vector3) -> void:
 	## yerga qoqilgan mash'al ustuni: yog'och ustun, temir savatcha, alanga
 	var root := Node3D.new()
@@ -403,6 +466,34 @@ func _brazier(p: Vector3) -> void:
 	_torch(p + Vector3(0, 1.55, 0), Color(1.0, 0.6, 0.28), 18.0, 0.95)
 
 
+func _local_points(o: Node3D) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	var inv := o.global_transform.affine_inverse()
+	for mi in o.find_children("*", "MeshInstance3D", true, false):
+		var m: MeshInstance3D = mi
+		if m.mesh == null:
+			continue
+		var xf: Transform3D = inv * m.global_transform
+		var faces := m.mesh.get_faces()
+		for i in range(0, faces.size(), 3):
+			# uchburchak markazi va uchlari
+			var a: Vector3 = xf * faces[i]
+			var b: Vector3 = xf * faces[i + 1]
+			var c2: Vector3 = xf * faces[i + 2]
+			out.append(a)
+			out.append((a + b + c2) / 3.0)
+	return out
+
+
+func _surface_z(pts: PackedVector3Array, x: float, y: float, fallback: float) -> float:
+	## binoning old yuzasi: shu (x, y) atrofidagi eng oldingi nuqta (lokal +Z)
+	var best := -1e9
+	for q in pts:
+		if absf(q.x - x) < 0.7 and absf(q.y - y) < 0.7:
+			best = maxf(best, q.z)
+	return best if best > -1e8 else fallback
+
+
 func _wall_torch(p: Vector3, yaw: float) -> void:
 	## devorga osilgan mash'al: temir ilgak va tayoq uchida alanga
 	var root := Node3D.new()
@@ -421,6 +512,18 @@ func _wall_torch(p: Vector3, yaw: float) -> void:
 	stick.rotation.z = -0.35
 	stick.position = Vector3(0.12, 0, 0)
 	root.add_child(stick)
+	# devorga qoqilgan temir taglik va ilgak (mash'al devorga yopishib turadi)
+	var im0 := StandardMaterial3D.new()
+	im0.albedo_color = Color("#2a2826")
+	im0.metallic = 0.7
+	for part in [[Vector3(0.04, 0.34, 0.16), Vector3(0.0, -0.05, 0)], [Vector3(0.16, 0.04, 0.04), Vector3(0.07, -0.12, 0)]]:
+		var br := MeshInstance3D.new()
+		var bbm := BoxMesh.new()
+		bbm.size = part[0]
+		br.mesh = bbm
+		br.material_override = im0
+		br.position = part[1]
+		root.add_child(br)
 	var head := MeshInstance3D.new()
 	var hm := CylinderMesh.new()
 	hm.top_radius = 0.1
@@ -512,7 +615,11 @@ func _rebuild_lights() -> void:
 			hx = minf(2.4, bx.size.x * 0.28)
 			hy = clampf(bx.size.y * 0.45, 1.6, 3.2)
 		for s in ([-1.0, 1.0] if b["t"] != "house" else [1.0]):
-			_wall_torch(_v(b["p"]) + bs * Vector3(s * hx, hy, front + 0.05), atan2(-fwd.z, fwd.x))
+			var fz := front
+			if bi < _bld_pts.size():
+				fz = _surface_z(_bld_pts[bi], s * hx, hy, front)
+			# ilgak devorga tegib turadi: mash'al tayog'i devordan 0.25 m chiqadi
+			_wall_torch(_v(b["p"]) + bs * Vector3(s * hx, hy, fz + 0.02), atan2(-fwd.z, fwd.x))
 
 func _rebuild() -> void:
 	for c in build_root.get_children():
@@ -543,6 +650,7 @@ func _rebuild() -> void:
 			o.rotation.y = atan2(away.x, away.z)        # bastion uchi tashqariga qaraydi
 		build_root.add_child(o)
 		_live_flags(o)
+		_tower_doors(o.position)
 		# minora tepasida soqchi (1-zamonda kamonchi, 2-zamonda miltiqli sarboz): atrofni kuzatadi
 		var u := Unit3D.soldier(Unit3D.faction_for(_p()["country"]), "sarboz" if Game.era == 2 else "kamonchi", Color(Game.countries[_p()["country"]]["color"]))
 		if u:
@@ -593,6 +701,7 @@ func _rebuild() -> void:
 				build_root.add_child(u)
 				_add_guard(u, u.rotation.y, "gate")
 	_bld_box.clear()
+	_bld_pts.clear()
 	for b in data["buildings"]:
 		var o := _inst(b["t"])
 		o.position = _v(b["p"])
@@ -607,6 +716,7 @@ func _rebuild() -> void:
 			bx = ab if first else bx.merge(ab)
 			first = false
 		_bld_box.append(bx)
+		_bld_pts.append(_local_points(o))
 		_live_flags(o)
 	_rebuild_lights()
 	_analyze()
@@ -2785,9 +2895,11 @@ func open_ctx(t: String) -> void:
 	UIKit.clear(_ctx_box)
 	_ctx_cards.clear()
 	match t:
-		"barracks", "stable":
+		"barracks", "stable", "ustaxona":
 			var need := t
-			_ctx_title.text = ("KAZARMA - piyoda askar yollash (kartani bosing: +1, Shift bilan +5)" if t == "barracks" else "OTXONA - otliq askar yollash (kartani bosing: +1, Shift bilan +5)")
+			_ctx_title.text = {"barracks": "KAZARMA - piyoda askar yollash (kartani bosing: +1, Shift bilan +5)",
+				"stable": "OTXONA - otliq askar yollash (kartani bosing: +1, Shift bilan +5)",
+				"ustaxona": "QAMAL USTAXONASI - narvonchi, taran va manjaniq (jangga faqat shu yerda yasalganlari chiqadi)"}[t]
 			var bst := Unit3D.building_style(_p()["country"])
 			var fac := Unit3D.faction_for(_p()["country"])
 			var col := Color(Game.countries[_p()["country"]]["color"]) if Game.countries.has(_p()["country"]) else Color("#2f7d4a")

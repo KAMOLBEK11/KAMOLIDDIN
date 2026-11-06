@@ -645,7 +645,10 @@ func _on_changed() -> void:
 		var c: Vector2 = p["center"]
 		var rad := _prov_radius(id)
 		var sc := clampf(rad * K / AREA_R * 1.25, 0.003, 0.018)      # metr -> 3D (biroz kattalashtirilgan)
-		var hq := _model("buildings/hq", 46.0 * sc)
+		var ctry: String = p["country"]
+		var oldm := func(part: String) -> String: return Unit3D.castle_file(ctry, part).trim_prefix("res://models/").trim_suffix(".glb")
+		# eski davrda: hokimiyat o'rnida - shu xalq uslubidagi ark (qal'a), uylar ham o'sha davrniki
+		var hq := _model("buildings/hq", 46.0 * sc) if Game.era >= 4 else _model(oldm.call("keep"), 52.0 * sc)
 		if hq:
 			hq.position = to3(c)
 			_team(hq, gold)
@@ -653,7 +656,9 @@ func _on_changed() -> void:
 		# shahar: hokimiyat atrofida uylar va daraxtlar (kichik)
 		var rng := RandomNumberGenerator.new()
 		rng.seed = hash(id)
-		var kinds := ["houses/house0", "houses/house1", "houses/house2", "houses/house3", "houses/apt5", "houses/apt9"]
+		var kinds: Array = ["houses/house0", "houses/house1", "houses/house2", "houses/house3", "houses/apt5", "houses/apt9"]
+		if Game.era < 4:
+			kinds = [oldm.call("house"), oldm.call("house"), oldm.call("house"), oldm.call("market"), oldm.call("smithy"), oldm.call("granary")]
 		for k in 14:
 			var hp: Vector2 = c + Vector2.from_angle(rng.randf() * TAU) * rad * rng.randf_range(0.12, 0.42)
 			var clash := false
@@ -664,7 +669,7 @@ func _on_changed() -> void:
 			if clash:
 				continue
 			var kd: String = kinds[rng.randi() % kinds.size()]
-			var hm := _model(kd, (24.0 if kd.contains("apt") else 14.0) * sc)
+			var hm := _model(kd, (24.0 if kd.contains("apt") else (14.0 if Game.era >= 4 else (10.0 if kd.ends_with("house") else 16.0))) * sc)
 			if hm:
 				hm.position = to3(hp)
 				hm.rotation.y = snappedf(rng.randf() * TAU, PI / 2)

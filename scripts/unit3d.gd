@@ -193,6 +193,12 @@ static func soldier(faction: String, kind: String, team := Color("#2f7d4a"), kni
 		return fil(faction, team)
 	if kind == "arava":
 		return arava(faction, team)
+	if kind == "narvonchi":
+		# narvonchi: nayzachi, yelkasida yog'och narvon ko'tarib yuradi
+		var nv := soldier(faction, "nayzachi", team)
+		if nv:
+			nv.add_child(_carried_ladder())
+		return nv
 	var path := _model_path(faction, kind)
 	if faction == "yevropa" and kind == "qilichboz" and (knight or randf() < KNIGHT_SHARE):
 		path = "res://models/era1/yevropa_ritser.glb"
@@ -213,9 +219,12 @@ static func soldier(faction: String, kind: String, team := Color("#2f7d4a"), kni
 		ShieldPose.attach(n)        # qalqon doim ko'krak oldida, yuzi oldinga
 	var ap := anim(n)
 	if ap:
-		for a in ["Idle", "Walk", "Run", "Block", "Ride", "Cheer", "Aim", "Look"]:
+		for a in ["Idle", "Walk", "Run", "Ride", "Cheer", "Aim", "Look"]:
 			if ap.has_animation(a):
 				ap.get_animation(a).loop_mode = Animation.LOOP_LINEAR
+		if ap.has_animation("Block"):
+			# himoya holati: bir marta qalqon/nayzani tutib, shu holatda qotib turadi (turib-o'tirib takrorlanmaydi)
+			ap.get_animation("Block").loop_mode = Animation.LOOP_NONE
 	return n
 
 
@@ -646,6 +655,30 @@ static func _skeleton(n: Node) -> Skeleton3D:
 		if s:
 			return s
 	return null
+
+
+static func _carried_ladder() -> Node3D:
+	var root := Node3D.new()
+	root.name = "CarriedLadder"
+	var wm := _mat(Color("#7a5530"))
+	for s in [-0.22, 0.22]:
+		var rail := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(4.2, 0.07, 0.07)
+		rail.mesh = bm
+		rail.material_override = wm
+		rail.position = Vector3(0.3, 1.62, s)
+		root.add_child(rail)
+	for k in 9:
+		var rung := MeshInstance3D.new()
+		var rb := BoxMesh.new()
+		rb.size = Vector3(0.05, 0.05, 0.44)
+		rung.mesh = rb
+		rung.material_override = wm
+		rung.position = Vector3(-1.6 + k * 0.48, 1.62, 0)
+		root.add_child(rung)
+	root.rotation.z = 0.12
+	return root
 
 
 static func _attach_at(sk: Skeleton3D, bone: String, child: Node3D, pos_skel: Vector3, yaw := 0.0) -> void:

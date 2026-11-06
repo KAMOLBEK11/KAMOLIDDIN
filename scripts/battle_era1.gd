@@ -13,7 +13,7 @@ const GW := 120
 const GH := 80
 const MAX_FIGS := 110
 const REG_SIZE := 14
-const KIND_ORDER1 := ["nayzachi", "qilichboz", "kamonchi", "otliq", "fil", "arava"]
+const KIND_ORDER1 := ["nayzachi", "qilichboz", "kamonchi", "otliq", "fil", "arava", "narvonchi"]
 const KIND_ORDER2 := ["nayzachi", "sarboz", "top", "otliq"]
 ## 2-zamon: sarboz - fitilli miltiq (uzoq masofa, sekin o'qlash, nayza-shtik bilan yaqin jang); to'p - zambarak
 const STAT2 := {
@@ -36,8 +36,9 @@ const STAT1 := {
 	"otliq": {"hp": 1.7, "dmg": 0.42, "reach": 2.4, "speed": 8.5, "cd": 1.1, "vs_cav": 1.0},
 	"fil": {"hp": 9.0, "dmg": 0.9, "reach": 3.4, "speed": 4.2, "cd": 1.6, "vs_cav": 2.0, "splash": 2.8},
 	"arava": {"hp": 2.4, "dmg": 0.5, "reach": 2.6, "speed": 9.5, "cd": 1.1, "vs_cav": 1.0},
+	"narvonchi": {"hp": 0.9, "dmg": 0.2, "reach": 2.0, "speed": 3.2, "cd": 1.2, "vs_cav": 1.4},
 }
-const NAMES1 := {"nayzachi": "Nayzachilar", "qilichboz": "Qilichbozlar", "kamonchi": "Kamonchilar", "otliq": "Otliqlar", "fil": "Jangovar fillar", "arava": "Jangovar aravalar"}
+const NAMES1 := {"nayzachi": "Nayzachilar", "qilichboz": "Qilichbozlar", "kamonchi": "Kamonchilar", "otliq": "Otliqlar", "fil": "Jangovar fillar", "arava": "Jangovar aravalar", "narvonchi": "Narvonchilar"}
 
 var army_id := -1
 var prov_id := ""
@@ -63,6 +64,9 @@ var figs: Array = []
 var regs: Array = []
 var arrows: Array = []
 var sel := -1
+var sels: Array = []            # bir nechta tanlangan bo'linma (ramka bilan yoki Shift)
+var _sel_box: Panel
+var _capture_t := 0.0           # qamal: arkka kirib bayroq o'rnatish vaqti
 var men_per_fig := 1.0
 var start_eq := [0.0, 0.0]
 var colors := [Color("#2f7d4a"), Color("#b8463a")]
@@ -822,9 +826,11 @@ func _raw_h(x: float, z: float, n: FastNoiseLite, amp: float) -> float:
 	# saf tortish zonalari tekisroq
 	var flat := minf(smoothstep(W * 0.36, W * 0.12, x), 1.0) + minf(smoothstep(W * 0.64, W * 0.88, x), 1.0)
 	h *= 1.0 - 0.65 * clampf(flat, 0.0, 1.0)
-	# daryo o'zani
+	# daryo o'zani: daryo bo'yi tekis (do'ngliklar faqat uzoqroqda), kechuv - sayoz va tekis
 	var d := absf(x - river_x(z))
-	var bed := -1.6 if is_ford(z) else -3.4
+	h *= smoothstep(14.0, 45.0, d) * 0.85 + 0.15
+	var fz := 1.0 - smoothstep(9.0, 16.0, minf(absf(z - H * 0.27), absf(z - H * 0.73)))
+	var bed := lerpf(-3.4, -1.15, fz)
 	h = lerpf(h, bed, smoothstep(13.0, 4.0, d))
 	if not cs.is_empty():
 		var ox := maxf(maxf(cs["x0"] - x, x - cs["x1"]), 0.0)
@@ -930,7 +936,7 @@ func _build_world() -> void:
 		wst.add_vertex(Vector3(rx + 11.0, -0.9, z))
 	water.mesh = wst.commit()
 	var wm := StandardMaterial3D.new()
-	wm.albedo_color = Color(0.18, 0.36, 0.42, 0.82)
+	wm.albedo_color = Color(0.16, 0.42, 0.72, 0.85)      # ko'k daryo suvi
 	wm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	wm.roughness = 0.08
 	wm.metallic_specular = 0.9
@@ -1051,7 +1057,11 @@ func _input_3d(e: InputEvent) -> void:
 			_lpress = mb.position
 		elif mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed and _lmb:
 			_lmb = false
+			if _sel_box:
+				_sel_box.visible = false
 			if _lmoved:
+				if not mb.shift_pressed and not mb.ctrl_pressed:
+					_box_select(_lpress, mb.position, Input.is_key_pressed(KEY_SHIFT))
 				return
 			var gp := ground_at(mb.position)
 			var ei := _engine_at(gp) if att_side == 0 else -1
@@ -1061,16 +1071,21 @@ func _input_3d(e: InputEvent) -> void:
 				return
 			_select_engine(-1)
 			var fi := _fig_at(gp, 0, 4.0)
-			_select(figs[fi]["reg"] if fi >= 0 else -1)
+			if fi >= 0 and mb.shift_pressed and sel >= 0:
+				_add_sel(figs[fi]["reg"])
+			else:
+				_select(figs[fi]["reg"] if fi >= 0 else -1)
 		elif mb.button_index == MOUSE_BUTTON_RIGHT and mb.pressed and sel_eng >= 0:
 			_order_engine(ground_at(mb.position))
 		elif mb.button_index == MOUSE_BUTTON_RIGHT and mb.pressed and sel >= 0:
-			_order(ground_at(mb.position))
+			_order_group(ground_at(mb.position))
 	elif e is InputEventMouseMotion:
 		var mm := e as InputEventMouseMotion
 		if _lmb and mm.position.distance_to(_lpress) > 6.0:
 			_lmoved = true
-		if _mid or (_lmb and _lmoved):
+		if _lmb and _lmoved and not _mid:
+			_draw_box(_lpress, mm.position)
+		elif _mid:
 			var a := ground_at(mm.position - mm.relative)
 			var b := ground_at(mm.position)
 			if a.distance_to(b) < 120.0:
@@ -1081,7 +1096,105 @@ func _input_3d(e: InputEvent) -> void:
 			_apply_cam()
 
 
+func _draw_box(a: Vector2, b: Vector2) -> void:
+	if _sel_box == null:
+		_sel_box = Panel.new()
+		_sel_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(0.4, 1.0, 0.45, 0.12)
+		sb.border_color = Color(0.5, 1.0, 0.55, 0.9)
+		sb.set_border_width_all(2)
+		_sel_box.add_theme_stylebox_override("panel", sb)
+		hud.add_child(_sel_box)
+	var r := Rect2(a, Vector2.ZERO).expand(b)
+	_sel_box.position = r.position
+	_sel_box.size = r.size
+	_sel_box.visible = true
+
+
+func _box_select(a: Vector2, b: Vector2, add: bool) -> void:
+	var r := Rect2(a, Vector2.ZERO).expand(b)
+	var hit: Array = []
+	for rg in regs:
+		if rg["side"] != 0 or _alive(rg) == 0 or rg.has("title"):
+			continue
+		for fi in rg["figs"]:
+			var f: Dictionary = figs[fi]
+			if not f["alive"]:
+				continue
+			var p: Vector3 = f["pos"] + Vector3(0, 1.0, 0)
+			if cam.is_position_behind(p):
+				continue
+			if r.has_point(cam.unproject_position(p)):
+				hit.append(rg["id"])
+				break
+	if hit.is_empty():
+		return
+	if not add:
+		_select(hit[0])
+		hit.remove_at(0)
+	for rid in hit:
+		_add_sel(rid)
+	tip_label.text = "%d bo'linma tanlandi. O'ng tugma: yerga - birga yurish, dushmanga - hujum." % sels.size()
+
+
+func _add_sel(rid: int) -> void:
+	if sel < 0:
+		_select(rid)
+		return
+	if sels.has(rid):
+		return
+	sels.append(rid)
+	for fi in regs[rid]["figs"]:
+		(figs[fi]["disc"] as MeshInstance3D).material_override = _sel_mat
+	tip_label.text = "%d bo'linma tanlandi." % sels.size()
+
+
+func _order_group(gp: Vector3) -> void:
+	## tanlangan barcha bo'linmalar: o'zaro joylashuvini saqlab birga boradi (yoki birga hujum qiladi)
+	if sels.size() <= 1:
+		_order(gp)
+		_order_mark(gp)
+		return
+	var cen := Vector3.ZERO
+	for rid in sels:
+		cen += _center(regs[rid])
+	cen /= float(sels.size())
+	var ef := _fig_at(gp, 1, 5.0)
+	var keep := sel
+	for rid in sels:
+		sel = rid
+		if ef >= 0 and phase == "fight":
+			_order(gp)
+		else:
+			var off: Vector3 = _center(regs[rid]) - cen
+			off.y = 0
+			_order(gp + off.limit_length(60.0))
+	sel = keep
+	_order_mark(gp)
+
+
+func _order_mark(gp: Vector3) -> void:
+	## buyruq berilgan joyda bayroqcha yerga qadaladi va so'nadi
+	var ef := _fig_at(gp, 1, 5.0)
+	var col := Color(0.95, 0.3, 0.2) if ef >= 0 else Color(0.4, 1.0, 0.45)
+	var flag := Unit3D.standard(col, 3.0)
+	flag.position = Vector3(gp.x, h_at(gp.x, gp.z) + 2.5, gp.z)
+	world.add_child(flag)
+	var tw := flag.create_tween()
+	tw.tween_property(flag, "position:y", h_at(gp.x, gp.z), 0.25).set_ease(Tween.EASE_IN)
+	tw.tween_interval(1.0)
+	tw.tween_property(flag, "scale", Vector3(0.01, 0.01, 0.01), 0.4)
+	tw.tween_callback(flag.queue_free)
+	Sfx.play("qadam" if ef < 0 else "qilich_sugurish", -12.0, 0.05, 0.2)
+
+
 func _select(rid: int) -> void:
+	for orid in sels:
+		if orid != sel and orid >= 0 and orid < regs.size():
+			for fi in regs[orid]["figs"]:
+				(figs[fi]["disc"] as MeshInstance3D).material_override = _disc_mats[figs[fi]["side"]]
+	sels = [rid] if rid >= 0 else []
 	if sel >= 0:
 		for fi in regs[sel]["figs"]:
 			(figs[fi]["disc"] as MeshInstance3D).material_override = _disc_mats[figs[fi]["side"]]
@@ -1099,7 +1212,7 @@ func _order(gp: Vector3) -> void:
 	if r["routed"]:
 		return
 	# qamal: devorni bossangiz - narvon (nayzachi) yoki ilmoqli arqon (qilichboz) bilan chiqish
-	if siege and att_side == 0 and phase == "fight" and r["kind"] in ["nayzachi", "qilichboz"] and _wall_dist(gp) < 5.0 and _outside(gp, 0.0):
+	if siege and att_side == 0 and phase == "fight" and r["kind"] in ["nayzachi", "qilichboz", "narvonchi"] and _wall_dist(gp) < 5.0 and _outside(gp, 0.0):
 		_order_climb(r, gp)
 		return
 	# o'z qal'angizni himoya qilish: devorni bossangiz - bo'linma zinadan devor ustiga chiqadi
@@ -1576,6 +1689,38 @@ func _separate() -> void:
 					(b["node"] as Node3D).position = Vector3(b["pos"].x, h_at(b["pos"].x, b["pos"].z), b["pos"].z)
 
 
+func _captured() -> bool:
+	## qamal g'alabasi: askarlarimiz ark oldiga kirib, bayroqni o'rnatishi kerak (taxminan 6 soniya)
+	var kp := Vector3(cs["cx"], 0, cs["cz"])
+	var near := 0
+	for f in figs:
+		if f["alive"] and f["side"] == 0 and Vector2(f["pos"].x - kp.x, f["pos"].z - kp.z).length() < 22.0:
+			near += 1
+	if near == 0:
+		if _capture_t <= 0.0 and tip_label:
+			tip_label.text = "Himoyachilar tor-mor! Endi qal'a ichiga kirib, ARK ustiga bayroq o'rnating (askarlarni arkka yuboring)."
+			_capture_t = 0.001
+			# himoyachisiz qal'a: o'yinchi askarlari o'zi arkka yo'l oladi
+			for r in regs:
+				if r["side"] == 0 and not r["routed"] and not r.has("title"):
+					r["anchor"] = kp + Vector3(-10.0, 0, randf_range(-8, 8))
+					r["order"] = "move"
+		return false
+	_capture_t += get_process_delta_time() * sim_speed
+	if tip_label:
+		tip_label.text = "Bayroq o'rnatilmoqda... %d%%" % int(clampf(_capture_t / 6.0, 0, 1) * 100)
+	if _capture_t >= 6.0:
+		var std := Unit3D.standard(colors[0], 7.0)
+		std.position = Vector3(kp.x, h_at(kp.x, kp.z) + 20.0, kp.z)
+		world.add_child(std)
+		var tw := std.create_tween()
+		std.scale = Vector3(1, 0.05, 1)
+		tw.tween_property(std, "scale", Vector3.ONE * 1.6, 1.2).set_trans(Tween.TRANS_BACK)
+		Sfx.play("karnay", -2.0, 0.02, 1.0)
+		return true
+	return false
+
+
 # ================================================================ ovozlar
 
 var _snd_t := 0.0
@@ -1978,6 +2123,10 @@ func _check_end() -> void:
 	var b := _fighting(1)
 	if a > 0 and b > 0:
 		return
+	if siege and att_side == 0 and a > 0 and b == 0 and not _captured():
+		return
+	if a > 0 and b > 0:
+		return
 	finished = true
 	player_won = b == 0 and a > 0
 	Sfx.stop_loops("b_")
@@ -2266,6 +2415,34 @@ func _fps_cam(f: Dictionary, node: Node3D, delta: float, moving: bool) -> void:
 		vm.position = Vector3(0, sin(_bob * 0.5) * (0.012 if moving else 0.004), 0)
 
 
+func _sabre_mesh(length: float, width: float, curve: float) -> ArrayMesh:
+	## silliq egri qilich tig'i: dastadan uchigacha torayib, orqaga egilgan; ikki yuzi o'tkir qirra bilan
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var n := 16
+	var rows: Array = []
+	for i in n + 1:
+		var t := float(i) / n
+		var y := t * length
+		var zc := -curve * t * t
+		var w := width * (1.0 - 0.75 * pow(t, 1.6))
+		if i == n:
+			w = 0.0005
+		var th := 0.006 * (1.0 - 0.7 * t)
+		# kesim: orqa (qalin), o'rta, o'tkir qirra
+		rows.append([Vector3(0, y, zc + w * 0.5), Vector3(th, y, zc), Vector3(0, y, zc - w * 0.5), Vector3(-th, y, zc)])
+	for i in n:
+		for k in 4:
+			var a: Vector3 = rows[i][k]
+			var b: Vector3 = rows[i][(k + 1) % 4]
+			var c: Vector3 = rows[i + 1][(k + 1) % 4]
+			var d: Vector3 = rows[i + 1][k]
+			st.add_vertex(a); st.add_vertex(b); st.add_vertex(c)
+			st.add_vertex(a); st.add_vertex(c); st.add_vertex(d)
+	st.generate_normals()
+	return st.commit()
+
+
 func _arm(parent: Node3D, shoulder: Vector3, hand_at: Vector3, sleeve: Material, skin: Material) -> Node3D:
 	## yelkadan kaftgacha: yeng, bilakuzuk va kaft. -Z o'qi kaft tomonga qaratiladi.
 	var sh := Node3D.new()
@@ -2353,12 +2530,31 @@ func _build_vm() -> void:
 			blade.rotation = Vector3(deg_to_rad(-55), 0, deg_to_rad(-10))
 			blade.scale = Vector3.ONE * 0.8
 			vm_weapon.add_child(blade)
-			_box(blade, Vector3(0.024, 0.1, 0.024), Vector3(0, -0.01, 0), wood)
-			_box(blade, Vector3(0.12, 0.016, 0.024), Vector3(0, 0.045, 0), gold)
-			for k in 7:
-				var t := float(k) / 6.0
-				_box(blade, Vector3(0.009, 0.085, 0.026 - t * 0.016), Vector3(0, 0.09 + k * 0.08, -t * t * 0.09), steel, Vector3(-0.05 - t * 0.3, 0, 0))
-			if not cmd_mounted:
+			# dasta (yumaloq), oltin gard va silliq egri tig' (sabre)
+			var hilt := MeshInstance3D.new()
+			var hc := CylinderMesh.new()
+			hc.top_radius = 0.016
+			hc.bottom_radius = 0.018
+			hc.height = 0.11
+			hilt.mesh = hc
+			hilt.material_override = _mat("#3a2414")
+			hilt.position = Vector3(0, -0.01, 0)
+			blade.add_child(hilt)
+			var gd := MeshInstance3D.new()
+			var gc := CapsuleMesh.new()
+			gc.radius = 0.012
+			gc.height = 0.13
+			gd.mesh = gc
+			gd.material_override = gold
+			gd.rotation.z = PI / 2.0
+			gd.position = Vector3(0, 0.048, 0)
+			blade.add_child(gd)
+			var bl := MeshInstance3D.new()
+			bl.mesh = _sabre_mesh(0.62, 0.034, 0.1)
+			bl.material_override = steel
+			bl.position = Vector3(0, 0.05, 0)
+			blade.add_child(bl)
+			if true:
 				var shd := MeshInstance3D.new()
 				var cyl := CylinderMesh.new()
 				cyl.top_radius = 0.22
@@ -2369,8 +2565,27 @@ func _build_vm() -> void:
 				shd.rotation.x = PI / 2.0
 				shd.position = Vector3(0.0, 0.0, -float(vm_l.get_meta("len")) + 0.05)
 				vm_l.add_child(shd)
-			else:
-				_box(vm_l, Vector3(0.01, 0.01, 0.5), Vector3(0.1, -0.03, -float(vm_l.get_meta("len")) - 0.2), _mat("#3a2414"), Vector3(0, 0.4, 0))
+				# qalqon hoshiyasi va bo'rtmasi
+				var rim := MeshInstance3D.new()
+				var tor := TorusMesh.new()
+				tor.inner_radius = 0.205
+				tor.outer_radius = 0.235
+				rim.mesh = tor
+				rim.material_override = steel
+				rim.rotation.x = PI / 2.0
+				rim.position = shd.position
+				vm_l.add_child(rim)
+				var boss := MeshInstance3D.new()
+				var bs := SphereMesh.new()
+				bs.radius = 0.05
+				bs.height = 0.05
+				boss.mesh = bs
+				boss.material_override = steel
+				boss.position = shd.position + Vector3(0, 0, -0.015)
+				vm_l.add_child(boss)
+				if cmd_mounted:
+					# otda: chap qo'l jilov ham ushlaydi
+					_box(vm_l, Vector3(0.01, 0.01, 0.5), Vector3(0.1, -0.03, -float(vm_l.get_meta("len")) - 0.2), _mat("#3a2414"), Vector3(0, 0.4, 0))
 		"kamon":
 			vm_l = _arm(vm, Vector3(-0.28, -0.4, 0.0), Vector3(-0.05, -0.06, -0.72), sleeve, skin)
 			vm_r = _arm(vm, Vector3(0.3, -0.4, 0.0), Vector3(0.03, -0.08, -0.42), sleeve, skin)
@@ -3175,6 +3390,28 @@ func _order_climb(r: Dictionary, gp: Vector3) -> void:
 
 func _spawn_engines() -> void:
 	var defs := [["top", "To'p 1"], ["top", "To'p 2"], ["top", "To'p 3"]] if Game.era == 2 else [["taran", "Taran"], ["manjaniq", "Manjaniq 1"], ["manjaniq", "Manjaniq 2"]]
+	if att_side == 0:
+		# o'yinchi hujum qilmoqda: jangga faqat ustaxonada yasalgan qurollar chiqadi (2-zamonda to'plar - qo'shin ichida)
+		defs = []
+		if Game.era < 2:
+			var nt := 0
+			var nm := 0
+			var src := ""
+			var a := War.get_army(army_id)
+			if not a.is_empty() and a.has("engines"):
+				nt = int(a["engines"].get("taran", 0))
+				nm = int(a["engines"].get("manjaniq", 0))
+			else:
+				if not a.is_empty():
+					src = str(a.get("base", ""))
+				for id in ([src] if src != "" and Game.provinces.has(src) else Game.player_provinces()):
+					var c: Dictionary = Game.provinces[id].get("castle", {}).get("army", {})
+					nt += int(c.get("taran", 0))
+					nm += int(c.get("manjaniq", 0))
+			for i in mini(nt, 3):
+				defs.append(["taran", "Taran %d" % (i + 1)])
+			for i in mini(nm, 4):
+				defs.append(["manjaniq", "Manjaniq %d" % (i + 1)])
 	for i in defs.size():
 		var t: String = defs[i][0]
 		var node := _engine_model(t)
@@ -3508,6 +3745,24 @@ func _breach(sg: Dictionary) -> void:
 func _breach_inner(sg: Dictionary) -> void:
 	## devor bo'lagi / darvoza qulaydi: modellar yerga cho'kadi, o'rnida xarsang uyumi
 	sg["hp"] = 0.0
+	# qulagan devor ustidagi askarlar pastga qulab tushadi (ko'pchiligi halok bo'ladi)
+	for f in figs:
+		if f["alive"] and f.get("layer", "ground") == "wall" and Vector2(f["pos"].x - sg["center"].x, f["pos"].z - sg["center"].z).length() < 6.0:
+			f["layer"] = "ground"
+			_fall(f)
+			if _rng.randf() < 0.7:
+				_hit(f, 99.0)
+			else:
+				_hit(f, 0.6)
+				# tirik qolgani yerda o'rnidan turib jangni davom ettiradi
+				var lp: Vector3 = (f["node"] as Node3D).position
+				f["state"] = ""
+				f["pos"] = Vector3(f["pos"].x, h_at(f["pos"].x, f["pos"].z), f["pos"].z)
+				get_tree().create_timer(0.9).timeout.connect(func():
+					if f["alive"]:
+						(f["node"] as Node3D).rotation = Vector3(0, (f["node"] as Node3D).rotation.y, 0)
+						f["pos"] = (f["node"] as Node3D).position
+						_anim(f, "Idle", true))
 	Sfx.at("darvoza_sinish" if sg.get("gate", false) else "tosh_zarba", sg["center"], world, 4.0, 0.05, 0.2, 50.0)
 	for n in sg["nodes"]:
 		var nd: Node3D = n

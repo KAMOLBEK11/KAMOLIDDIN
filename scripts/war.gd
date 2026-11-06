@@ -267,6 +267,10 @@ func send_army(from_id: String, to_id: String) -> void:
 		"supply": 100.0, "warned": false,
 	}
 	_next_id += 1
+	if Game.era < 4:
+		# qamal qurollari qo'shin bilan birga yo'lga chiqadi
+		var ca: Dictionary = p.get("castle", {}).get("army", {})
+		a["engines"] = {"taran": int(ca.get("taran", 0)), "manjaniq": int(ca.get("manjaniq", 0))}
 	if site != "":
 		Game.take_units(p, site, ns, nt)
 	p["units"]["soldier"] = p["units"]["soldier"] - ns
