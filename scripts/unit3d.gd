@@ -19,7 +19,7 @@ static func _scene(path: String) -> PackedScene:
 
 const GEMINI_SCALE := 0.86     # Gemini modellari ~2.1 m - bizning 1.8 m askarlarga moslash
 ## madaniyat -> askar modellari to'plami
-const CULTURE_FACTION := {"xitoy": "xitoy", "rus": "rus", "fransuz": "yevropa", "turk": "temur", "arab": "arab", "italyan": "italiya", "yunon": "yunon"}
+const CULTURE_FACTION := {"xitoy": "xitoy", "rus": "rus", "fransuz": "yevropa", "turk": "turk", "arab": "arab", "italyan": "italiya", "yunon": "yunon"}
 ## yangi xalqlar (1400): Afrika (Mali, Kanem-Bornu...), Hindiston (Rajputlar, Dehli...), Angliya ("Winston" qirolligi uslubi)
 const AFRICA1 := ["BEN", "ETH", "KAN", "MAK", "MAL", "SWA", "ZIM"]
 const INDIA1 := ["DEL", "KAS", "ORI", "PAN", "SIN", "VIJ"]
@@ -29,6 +29,10 @@ const INDIA2 := ["NEP"]
 ## G'arbiy va Markaziy Yevropa davlatlari (ma'lumotda "boshqa" madaniyatli) - Yevropa ritsarlari
 const EUROPE := ["ENG", "SCO", "CAS", "ARA", "NAV", "POR", "HRE", "HUN", "POL", "TEU", "KAL", "BOS", "MOL", "WAL"]
 const BLENDER_FACTIONS := ["osiyo", "rus", "xitoy", "arabi", "afrika", "hind", "yunon", "angliya", "ozbek", "rus2", "ingliz", "yevropa2", "usmonli", "xitoy2"]   # o'zimiz Blender'da yasagan (+X ga qaragan, otda o'tira oladi)
+## Mixamo skeletli yangi askarlar models/era1/mx/ papkasida: 1.8 m, +X ga qaragan,
+## animatsiya nomlari allaqachon o'yinnikidek (Idle/Walk/Run/Attack/Block/Hit/Death1/Ride...)
+## - burish/miqyoslash kerak emas, qalqon model ichiga qo'shilgan.
+const MIXAMO_DIR := "/era1/mx/"
 const ERA2_FACTIONS := ["ozbek", "rus2", "ingliz", "yevropa2", "usmonli", "xitoy2"]       # 1850-1880 askarlari models/era2 papkasida
 ## 2-zamon: madaniyat -> qo'shin modellari
 const CULTURE_FACTION2 := {"ozbek": "ozbek", "rus": "rus2", "ingliz": "ingliz", "yevropa": "yevropa2", "usmonli": "usmonli", "xitoy": "xitoy2", "boshqa": "usmonli"}
@@ -168,6 +172,11 @@ const ARCHER := {"temur": "osiyo", "arab": "arabi", "yevropa": "rus", "italiya":
 
 
 static func _model_path(faction: String, kind: String) -> String:
+	# Mixamo skeletli yangi askarlar (era1/mx) - bo'lsa shular, bo'lmasa eski modellar
+	if not faction in ERA2_FACTIONS:
+		var mx := "res://models/era1/mx/%s_%s.glb" % [faction, kind]
+		if ResourceLoader.exists(mx):
+			return mx
 	if kind == "kamonchi" and ARCHER.has(faction) and ResourceLoader.exists("res://models/era1/%s_kamonchi.glb" % ARCHER[faction]):
 		return "res://models/era1/%s_kamonchi.glb" % ARCHER[faction]
 	var p := "res://models/%s/%s_%s.glb" % ["era2" if faction in ERA2_FACTIONS else "era1", faction, kind]
@@ -207,7 +216,9 @@ static func soldier(faction: String, kind: String, team := Color("#2f7d4a"), kni
 		return null
 	var inst: Node3D = sc.instantiate()
 	var n: Node3D = inst
-	if not path.get_file().get_slice("_", 0) in BLENDER_FACTIONS:     # o'zimiz Blender'da yasagan modellar allaqachon +X ga qaragan
+	var fam := path.get_file().get_slice("_", 0)
+	var mixamo := path.contains(MIXAMO_DIR)
+	if not mixamo and not fam in BLENDER_FACTIONS:     # o'zimiz Blender'da yasagan modellar allaqachon +X ga qaragan
 		# Gemini modellari +Z ga qaragan va kattaroq: o'yindagi askarlar kabi +X ga buriladi
 		n = Node3D.new()
 		n.add_child(inst)
@@ -215,7 +226,8 @@ static func soldier(faction: String, kind: String, team := Color("#2f7d4a"), kni
 		inst.scale = Vector3.ONE * float(SCALE.get(faction if path.contains(faction + "_") else "", GEMINI_SCALE))
 		_alias_anims(anim(inst), kind)
 	recolor(n, team)
-	if kind in ["qilichboz", "nayzachi"] and Game.era < 2:
+	# Mixamo askarlarida qalqon modelga qo'shib yuborilgan - qo'lni dasturiy burish kerak emas
+	if not mixamo and kind in ["qilichboz", "nayzachi"] and Game.era < 2:
 		ShieldPose.attach(n)        # qalqon doim ko'krak oldida, yuzi oldinga
 	var ap := anim(n)
 	if ap:
@@ -594,7 +606,10 @@ static func cavalry(faction: String, kind: String, team := Color("#2f7d4a")) -> 
 	var h := horse(team)
 	if h:
 		caparison(h, faction, team)
-	var r := soldier(faction if faction in BLENDER_FACTIONS else "osiyo", kind, team)     # otda o'tirish animatsiyasi faqat Blender modellarida bor
+	# otda o'tirish animatsiyasi (Ride) Blender va Mixamo modellarida bor; boshqalarida yo'q - "osiyo" ishlatiladi
+	var can_ride := faction in BLENDER_FACTIONS \
+		or ResourceLoader.exists("res://models/era1/mx/%s_%s.glb" % [faction, kind])
+	var r := soldier(faction if can_ride else "osiyo", kind, team)
 	if r:
 		var spm := ShieldPose._find(r)
 		if spm:
