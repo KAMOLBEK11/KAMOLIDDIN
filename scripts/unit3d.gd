@@ -19,7 +19,10 @@ static func _scene(path: String) -> PackedScene:
 
 const GEMINI_SCALE := 0.86     # Gemini modellari ~2.1 m - bizning 1.8 m askarlarga moslash
 ## madaniyat -> askar modellari to'plami
-const CULTURE_FACTION := {"xitoy": "xitoy", "rus": "rus", "fransuz": "yevropa", "turk": "turk", "arab": "arab", "italyan": "italiya", "yunon": "yunon"}
+const CULTURE_FACTION := {"xitoy": "xitoy", "rus": "rus", "fransuz": "yevropa", "turk": "temur", "arab": "arab", "italyan": "italiya", "yunon": "yunon"}
+## Yanichar - Usmonlilar askari. "turk" madaniyatida Temuriylar, Oltin O'rda va
+## Mo'g'uliston ham bor, ularga yanichar emas, Markaziy Osiyo askari (temur) tushadi.
+const OTTOMAN := ["OTT", "AYD", "KAR"]
 ## yangi xalqlar (1400): Afrika (Mali, Kanem-Bornu...), Hindiston (Rajputlar, Dehli...), Angliya ("Winston" qirolligi uslubi)
 const AFRICA1 := ["BEN", "ETH", "KAN", "MAK", "MAL", "SWA", "ZIM"]
 const INDIA1 := ["DEL", "KAS", "ORI", "PAN", "SIN", "VIJ"]
@@ -162,6 +165,8 @@ static func faction_for(country: String) -> String:
 		return "xitoy"
 	if country == "YUA":       # Shimoliy Yuan - mo'g'ul otliqlari
 		return "temur"
+	if country in OTTOMAN:     # yanichar faqat Anadolu turklarida
+		return "turk"
 	if Game.countries.has(country):
 		return CULTURE_FACTION.get(Game.countries[country].get("culture", ""), "temur")
 	return "temur"
