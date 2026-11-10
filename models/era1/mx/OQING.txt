@@ -45,8 +45,36 @@ Kamonchilar - 19 ta:
 
 TEXNIK
 ------
-  Bo'y 1.8 m, +X tomonga qaragan (o'yin konvensiyasi)
+  Bo'y 1.85 m, +X tomonga qaragan (o'yin konvensiyasi)
   Skelet: Mixamo (mixamorig:Hips, mixamorig:LeftArm ...)
-  Tekstura: 1024x1024 JPEG, old tomondan proyeksiya (Gemini rasmlaridan)
-  Poligon: ~5200 vertex (asl 9500 dan)
-  Har fayl ~2.0-2.8 MB
+  Poligon: ~22500 uchburchak - MODELNING ASL ZICHLIGI, KESILMAGAN.
+           (Blenderda allaqachon 19 mingga tushirilgan; ustiga decimate
+            qilinsa yuz va deformatsiya buziladi.)
+  Tekstura: 1024x1024 JPEG
+  Har fayl ~2.5-3.0 MB
+
+ANIMATSIYA TUZATISHLARI
+-----------------------
+  1. ROOT MOTION O'CHIRILGAN. Mixamo animatsiyalari "in place" emas:
+     masalan 'walk forward' da Hips suyagi 62 sm oldinga suriladi.
+     O'yin askarni o'zi harakatlantirgani uchun bu qo'shilib ketardi va
+     animatsiya qaytganda askar orqaga sakrardi. Endi gorizontal
+     siljish 0.0 sm (vertikal tebranish qoldi - qadam tabiiy ko'rinadi).
+
+  2. QOMAT TIKLANGAN. Yurish/yugurish animatsiyasi kamonchi paketidan
+     (qilich+qalqon paketida yurish YO'Q edi), juda engashgan edi:
+     yurish 26.5 gradus, yugurish 40.5. Umurtqa suyaklariga avtomatik
+     hisoblangan tuzatish qo'yildi: yurish 15, yugurish 23
+     (tik turgan holat 12.5).
+
+  3. QO'L POZASI KO'CHIRILGAN. Kamonchi yurishida o'ng qo'l kamon
+     uchun pozada bo'lgani uchun qilich oldinga nayzadek cho'zilardi.
+     Endi oyoqlar yuradi, qo'llar Idle pozasini saqlaydi.
+
+TEKSTURA HAQIDA (MUHIM)
+-----------------------
+  Manba FBX fayllarda tekstura yo'q edi (Tripo eksportida qolib ketgan).
+  Shuning uchun Gemini rasmlari OLD TOMONDAN PROYEKSIYA qilingan:
+  oldi to'g'ri, lekin yon va orqa tomon surtilib ko'rinadi.
+  To'g'rilash uchun Tripo'dan GLB formatida (yoki FBX + tekstura fayllari
+  bilan) qayta eksport qilish kerak.
