@@ -210,7 +210,9 @@ static func soldier(faction: String, kind: String, team := Color("#2f7d4a"), kni
 		return nv
 	var path := _model_path(faction, kind)
 	if faction == "yevropa" and kind == "qilichboz" and (knight or randf() < KNIGHT_SHARE):
-		path = "res://models/era1/yevropa_ritser.glb"
+		path = "res://models/era1/mx/yevropa_ritser.glb"
+		if not ResourceLoader.exists(path):
+			path = "res://models/era1/yevropa_ritser.glb"
 	var sc := _scene(path)
 	if sc == null:
 		return null

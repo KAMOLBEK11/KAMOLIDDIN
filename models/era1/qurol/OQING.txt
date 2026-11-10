@@ -1,0 +1,34 @@
+Alohida qurol va hayvon modellari (Tripo 3D dan ajratilgan)
+============================================================
+
+Bular askar modellari ichiga allaqachon qo'shilgan - bu papka
+ularni alohida ishlatish uchun (qurolxona, yerda yotgan qurol,
+karvon, temirchi do'koni va h.k.).
+
+QUROLLAR - hammasi standart holatda:
+  origin = tutqich nuqtasi (qo'l ushlaydigan joy)
+  +Z o'qi = tig'/sop yo'nalishi (qo'ldan tashqariga)
+
+  qilich_egri.glb     0.95 m   egri qilich (Islomiy xalqlar)
+  qilich_tekis.glb    0.95 m   tekis qilich (Yevropa)
+  qilich_tekis2.glb   0.90 m   tekis qilich, boshqa uslub
+  nayza.glb           2.20 m   nayza (Mamluk uslubda, tasqli)
+  bolta.glb           0.80 m   jang boltasi
+  gurzi.glb           0.75 m   gurzi
+
+QALQONLAR - origin markazda, +Y = tashqi yuz (dushmanga qaragan):
+  qalqon_dumaloq.glb  0.60 m   po'lat dumaloq qalqon, islomiy naqsh
+  qalqon_dumaloq2.glb 0.58 m   dumaloq qalqon, oltin naqsh
+  qalqon_uchli.glb    0.78 m   uchburchak (heater) qalqon, Yevropa gerbi
+
+KAMON:
+  kamon.glb           1.25 m   kamon (markazi = tutqich)
+  oq.glb              0.75 m   o'q
+  sadoq.glb           0.60 m   sadoq (o'qdon), o'qlari bilan
+
+HAYVONLAR:
+  zirhli_ot.glb       jang oti, qizil-oq yopinchiq bilan
+  eshak.glb           yuk eshagi, qoplari bilan
+  tuya.glb            yuk tuyasi (karvon uchun)
+
+Hammasi 512x512 tekstura, poligon kamaytirilgan.

@@ -1,0 +1,52 @@
+Mixamo skeletli askarlar (1-zamon, 1400)
+=========================================
+
+Bu papkadagi modellar eski Gemini modellarining o'rnini bosadi.
+unit3d.gd avval shu papkani qaraydi; fayl bo'lmasa eski modelga tushadi.
+
+XALQLAR (8 ta) x TURLAR (4 ta) = 32 + yevropa_ritser
+-----------------------------------------------------
+  arab      - O'rta Sharq askari, konus dubulg'a + salla
+  turk      - Usmonli yanichari, oq bo'rk
+  temur     - Markaziy Osiyo (Amir Temur davri) askari
+  hind      - Hind rajputi, qizil-sariq salla
+  xitoy     - Xitoy Ming lamellar zirhi, ajdarho yelkabandlar
+  yevropa   - Fransuz ritsari (fleur-de-lis)
+  italiya   - Italiya ritsari
+  rus       - Rus/Slavyan jangchisi
+
+  _qilichboz  qilich + qalqon
+  _nayzachi   nayza + qalqon
+  _kamonchi   kamon + sadoq (o'q bilan)
+  _otliq      qilich + qalqon, otda o'tirish pozasi bilan
+
+QUROLLAR
+--------
+  Islomiy xalqlar (arab, turk, temur, hind, xitoy): egri qilich + dumaloq qalqon
+  Yevropa xalqlar (yevropa, italiya, rus):          tekis qilich + uchburchak qalqon
+
+  Qurollar modelga QO'SHIB yuborilgan (skin ichida, suyakka 100% og'irlik bilan).
+  Shuning uchun ShieldPose kerak emas va animatsiyada qo'ldan chiqmaydi.
+
+ANIMATSIYALAR
+-------------
+Jangchilar (qilichboz / nayzachi / otliq) - 19 ta:
+  Idle IdleCalm Guard Walk Run TurnL TurnR
+  Attack Block BlockIdle CrouchBlock Hit
+  Death1 Death2 Death3 Cheer Ride RideAttack TPose
+
+Kamonchilar - 19 ta:
+  Idle IdleCalm Guard Walk Run TurnL TurnR
+  Aim DrawArrow Attack(otish) EquipBow Block Hit Dodge
+  Death1 Death2 Cheer Ride RideAttack
+
+  BlockIdle / CrouchBlock - toshbaqa (testudo) tuzilishi uchun.
+  Ride / RideAttack - Mixamo'da yo'q edi, Blenderda protsedural yasalgan.
+
+TEXNIK
+------
+  Bo'y 1.8 m, +X tomonga qaragan (o'yin konvensiyasi)
+  Skelet: Mixamo (mixamorig:Hips, mixamorig:LeftArm ...)
+  Tekstura: 1024x1024 JPEG, old tomondan proyeksiya (Gemini rasmlaridan)
+  Poligon: ~5200 vertex (asl 9500 dan)
+  Har fayl ~2.0-2.8 MB
