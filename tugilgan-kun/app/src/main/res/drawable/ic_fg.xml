@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ilova belgisi: taqvim varagʻi va hilol -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- varaq -->
+    <path android:fillColor="#FFFDF8"
+        android:pathData="M36,34h36a4,4 0,0 1,4 4v38a4,4 0,0 1,-4 4h-36a4,4 0,0 1,-4 -4v-38a4,4 0,0 1,4 -4z" />
+    <!-- qizil yuqori qism -->
+    <path android:fillColor="#D3261D"
+        android:pathData="M36,34h36a4,4 0,0 1,4 4v8h-44v-8a4,4 0,0 1,4 -4z" />
+    <!-- halqalar -->
+    <path android:fillColor="#152D70"
+        android:pathData="M43,30a3,3 0,1 1,0 6a3,3 0,1 1,0 -6zM65,30a3,3 0,1 1,0 6a3,3 0,1 1,0 -6z" />
+    <!-- hilol -->
+    <path android:fillColor="#1C3D96"
+        android:pathData="M56,53A10,10 0,0 0,56 73A13,13 0,0 1,56 53z" />
+</vector>

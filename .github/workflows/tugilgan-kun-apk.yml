@@ -1,0 +1,51 @@
+name: Tugilgan kun APK
+
+on:
+  push:
+    paths:
+      - 'tugilgan-kun/**'
+      - '.github/workflows/tugilgan-kun-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tugilgan-kun
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: APK yigʻish
+        run: gradle assembleDebug --no-daemon
+
+      - name: Faylni nomlash
+        run: cp app/build/outputs/apk/debug/app-debug.apk TugilganKun.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TugilganKun-apk
+          path: tugilgan-kun/TugilganKun.apk
+
+      - name: Release ga joylash (telefondan yuklab olish uchun)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: tugilgan-kun-v${{ github.run_number }}
+          name: Tugʻilgan kun taqvimi v${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          files: tugilgan-kun/TugilganKun.apk
+          body: |
+            Telefonda **TugilganKun.apk** faylini bosib yuklab oling va oching.
+            Agar telefon ruxsat soʻrasa: "Nomaʼlum manbalardan oʻrnatish"ga ruxsat bering.

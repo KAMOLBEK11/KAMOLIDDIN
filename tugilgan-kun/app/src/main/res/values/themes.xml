@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="lapis">#1C3D96</color>
+    <color name="lapis_dark">#152D70</color>
+    <color name="paper">#FFFDF8</color>
+    <color name="red">#D3261D</color>
+
+    <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/lapis</item>
+        <item name="android:navigationBarColor">@color/lapis_dark</item>
+        <item name="android:windowBackground">@color/lapis</item>
+    </style>
+</resources>

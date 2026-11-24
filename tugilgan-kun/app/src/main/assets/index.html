@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tugʻilgan kun taqvimi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;800&family=Inter:wght@400;500;600&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE everyday, warm, for families of all ages
+   IDEA the Uzbek wall tear-off calendar sheet that shows both the milodiy and hijriy date
+   PICTURE one large calendar sheet for the birth day, plus a muchal wheel of 12 animals
+   COLOUR Samarkand lapis ground, paper white sheet, calendar red, tile turquoise
+   TYPE Inter Tight display + Inter text, Amiri for Arabic
+   LAYOUT inputs over sheet left, facts list right; on phone: title, inputs, sheet, facts */
+:root{color-scheme:light dark;--bg:light-dark(#ffffff,#0b1430);--ink:light-dark(#141821,#eef1f8);--mute:light-dark(#5a6275,#a7b0c6);--lap:#1c3d96;--lap2:light-dark(#e9eefb,#14214a);--red:#d3261d;--tq:light-dark(#127f7a,#46c9c1);--line:light-dark(#dde2ee,#263561);--paper:#fffdf8;--pink:#141821}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.55 Inter,system-ui,sans-serif;overflow-x:clip}
+h1,h2{font-family:"Inter Tight",Inter,sans-serif;font-weight:800;letter-spacing:-.02em;line-height:1.05;margin:0;text-wrap:balance}
+h1{font-size:clamp(30px,5vw,46px)}
+h2{font-size:clamp(24px,3.4vw,32px);margin-bottom:14px}
+.band{padding:clamp(22px,4vw,48px) max(5vw,16px)}
+.wrap{max-width:1180px;margin:0 auto}
+.top{background:var(--lap);color:#fff;padding-bottom:clamp(24px,4vw,40px)}
+.top p{margin:8px 0 18px;color:#cfd9f5;max-width:60ch}
+.today{font-size:14px;color:#cfd9f5;margin-bottom:14px}
+.form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;align-items:end}
+.form label{display:block;font-size:14px;color:#dfe6fb;margin-bottom:4px}
+select,input[type=text],input[type=number]{width:100%;font:16px Inter,sans-serif;height:48px;padding:0 12px;border-radius:10px;border:1.5px solid #8ea3dc;background:#fff;color:#141821}
+select:focus,input:focus,button:focus-visible{outline:3px solid #f2c440;outline-offset:2px}
+.chk{display:flex;gap:10px;align-items:center;margin-top:12px;font-size:15px;color:#fff;cursor:pointer}
+.chk input{width:22px;height:22px;accent-color:#f2c440;flex:none}
+.main{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:clamp(20px,4vw,48px);align-items:start}
+/* calendar sheet */
+.sheet{position:relative;background:var(--paper);color:#141821;border-radius:6px 6px 0 0;box-shadow:0 2px 0 #e4ddcc,0 6px 0 #efe9dc,0 14px 30px rgba(10,20,60,.25);margin-top:-8px}
+.bind{height:34px;background:#152d70;border-radius:6px 6px 0 0;display:flex;justify-content:center;gap:90px;align-items:center}
+.bind i{width:14px;height:14px;border-radius:50%;background:var(--paper);box-shadow:inset 0 2px 3px rgba(0,0,0,.4)}
+.shtop{display:flex;justify-content:space-between;align-items:baseline;padding:14px 20px 0;font-weight:600}
+.shtop .mo{color:var(--red);font-size:22px;font-family:"Inter Tight",sans-serif}
+.shtop .yr{font-size:22px;font-family:"Inter Tight",sans-serif}
+.day{font-family:"Inter Tight",sans-serif;font-weight:800;font-size:clamp(120px,22vw,190px);line-height:.95;text-align:center;color:var(--red);letter-spacing:-.04em;margin:6px 0 0}
+.wd{text-align:center;font-size:26px;font-weight:600;font-family:"Inter Tight",sans-serif}
+.hij{margin:16px 20px 0;padding:14px 0 0;border-top:2px dashed #cfc7b4;display:flex;justify-content:space-between;gap:12px;align-items:center}
+.hij .ar{font-family:Amiri,serif;font-size:26px;direction:rtl;line-height:1.3}
+.hij .uz{font-weight:600;font-size:17px}
+.much{display:flex;align-items:center;gap:12px;margin:14px 20px 0;padding:10px 14px;background:#eef3ff;border-radius:10px}
+.much b{font-family:"Inter Tight",sans-serif;font-size:22px;color:#1c3d96}
+.much span{font-size:14px;color:#4a5266}
+.tear{height:18px;background:radial-gradient(circle at 9px 0,transparent 8px,var(--paper) 8.5px) 0 0/18px 18px repeat-x;transform:scaleY(-1);margin-top:18px}
+.name{text-align:center;font-size:16px;color:#4a5266;margin-top:4px;min-height:1em}
+/* facts */
+.facts{display:grid;gap:0;margin:0;padding:0}
+.facts div{display:grid;grid-template-columns:minmax(0,11em) minmax(0,1fr);gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.facts dt{color:var(--mute);font-size:15px}
+.facts dd{margin:0;font-weight:600}
+.facts dd small{display:block;font-weight:400;color:var(--mute);font-size:14px}
+.big{font-family:"Inter Tight",sans-serif;font-size:clamp(26px,4vw,34px);font-weight:800;line-height:1.1;color:var(--tq)}
+.btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+button{font:600 16px Inter,sans-serif;min-height:46px;padding:0 18px;border-radius:10px;border:0;cursor:pointer;background:var(--lap);color:#fff}
+button.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+button:hover{filter:brightness(1.1)}
+.note{font-size:14px;color:var(--mute);margin-top:14px;max-width:62ch}
+.alt{background:var(--lap2)}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(20px,4vw,48px);align-items:start}
+.panel{background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:20px}
+.conv{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr) minmax(0,1.2fr);gap:10px;margin:12px 0}
+.conv select,.conv input{border-color:var(--line)}
+.out{font-size:18px;font-weight:600;min-height:3em}
+.out .big{display:block}
+.wheel{display:block;width:100%;max-width:360px;margin:0 auto}
+.wheel text{font:600 13px Inter,sans-serif;fill:var(--ink)}
+.wheel .on text{fill:#fff}
+.legend{font-size:15px;color:var(--mute);text-align:center;margin-top:8px}
+footer{font-size:14px;color:var(--mute);text-align:center;padding:24px 16px 32px}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#141821;color:#fff;padding:10px 18px;border-radius:10px;font-size:15px;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+@media(max-width:820px){.main,.two{grid-template-columns:minmax(0,1fr)}.sheet{max-width:460px;margin-inline:auto;width:100%}}
+@media(max-width:600px){.form{grid-template-columns:repeat(3,minmax(0,1fr))}.form .nm{grid-column:1/-1}.facts div{grid-template-columns:minmax(0,1fr);gap:2px}.conv{grid-template-columns:repeat(2,minmax(0,1fr))}.conv .yy{grid-column:1/-1}.bind{gap:60px}}
+@media(prefers-reduced-motion:no-preference){.sheet.flip{animation:fl .45s ease-out}@keyframes fl{from{transform:perspective(900px) rotateX(-18deg);opacity:.4}to{transform:none;opacity:1}}}
+</style>
+</head>
+<body>
+<section class="band top">
+ <div class="wrap">
+  <div class="today" id="today"></div>
+  <h1>Tugʻilgan kun taqvimi</h1>
+  <p>Tugʻilgan sanangizni kiriting: milodiy va hijriy sana, hafta kuni, muchal yili, burj, yoshingiz va keyingi tugʻilgan kuningiz bir joyda.</p>
+  <form class="form" id="f">
+   <div class="nm"><label for="nm">Ism (ixtiyoriy)</label><input type="text" id="nm" placeholder="Masalan, Dilnoza" maxlength="40"></div>
+   <div><label for="dd">Kun</label><select id="dd"></select></div>
+   <div><label for="mm">Oy</label><select id="mm"></select></div>
+   <div><label for="yy">Yil</label><select id="yy"></select></div>
+  </form>
+  <label class="chk"><input type="checkbox" id="night"> Quyosh botgandan keyin (kechqurun yoki tunda) tugʻilgan</label>
+ </div>
+</section>
+
+<section class="band">
+ <div class="wrap main">
+  <div>
+   <div class="sheet" id="sheet">
+    <div class="bind"><i></i><i></i></div>
+    <div class="shtop"><span class="mo" id="sMo"></span><span class="yr" id="sYr"></span></div>
+    <div class="day" id="sDay"></div>
+    <div class="wd" id="sWd"></div>
+    <div class="name" id="sName"></div>
+    <div class="hij"><span class="uz" id="sHu"></span><span class="ar" id="sHa"></span></div>
+    <div class="much"><b id="sMu"></b><span id="sMuT">muchal yili</span></div>
+    <div class="tear"></div>
+   </div>
+  </div>
+  <div>
+   <h2 id="hd">Natija</h2>
+   <dl class="facts" id="facts"></dl>
+   <div class="btns">
+    <button type="button" id="share" hidden>Ulashish</button>
+    <button type="button" id="copy">Natijani nusxalash</button>
+    <button type="button" class="ghost" id="nowBtn">Bugungi sana</button>
+   </div>
+   <p class="note">Hijriy sana Umm al-Quro taqvimi boʻyicha hisoblanadi. Oʻzbekistonda oy koʻrinishiga qarab 1 kun farq boʻlishi mumkin. Islomda kun quyosh botishi bilan boshlanadi, shuning uchun kechqurun tugʻilganlar uchun belgini qoʻying.</p>
+  </div>
+ </div>
+</section>
+
+<section class="band alt">
+ <div class="wrap two">
+  <div class="panel">
+   <h2>Hijriydan milodiyga</h2>
+   <p class="note" style="margin-top:0">Hijriy sanani bilsangiz, milodiy sanasini va hafta kunini toping.</p>
+   <div class="conv">
+    <select id="cD" aria-label="Hijriy kun"></select>
+    <select id="cM" aria-label="Hijriy oy"></select>
+    <input class="yy" type="number" id="cY" aria-label="Hijriy yil" min="1300" max="1500">
+   </div>
+   <div class="out" id="cOut"></div>
+  </div>
+  <div class="panel">
+   <h2>Muchal charxi</h2>
+   <svg class="wheel" id="wheel" viewBox="0 0 320 320" role="img" aria-label="12 muchal yili"></svg>
+   <div class="legend" id="wLeg"></div>
+  </div>
+ </div>
+</section>
+<footer>Muchal yili Navroʻzdan (21-mart) boshlanadi deb hisoblangan. Maʼlumotlar telefoningizda saqlanadi.</footer>
+<div class="toast" id="toast"></div>
+
+<script>
+{
+const M=['Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
+const MG=['yanvar','fevral','mart','aprel','may','iyun','iyul','avgust','sentabr','oktabr','noyabr','dekabr'];
+const HM=['Muharram','Safar','Rabiul-avval','Rabiul-oxir','Jumodul-avval','Jumodul-oxir','Rajab','Shaʼbon','Ramazon','Shavvol','Zulqaʼda','Zulhijja'];
+const WD=['Yakshanba','Dushanba','Seshanba','Chorshanba','Payshanba','Juma','Shanba'];
+const MU=['Sichqon','Sigir','Yoʻlbars','Quyon','Baliq','Ilon','Ot','Qoʻy','Maymun','Tovuq','It','Toʻngʻiz'];
+const BURJ=[[1,20,'Jadiy','Togʻ echkisi'],[2,19,'Dalv','Qovgʻa'],[3,21,'Hut','Baliqlar'],[4,20,'Hamal','Qoʻy'],[5,21,'Savr','Buzoq'],[6,21,'Javzo','Egizaklar'],[7,23,'Saraton','Qisqichbaqa'],[8,23,'Asad','Arslon'],[9,23,'Sunbula','Parizod'],[10,23,'Mezon','Tarozi'],[11,22,'Aqrab','Chayon'],[12,22,'Qavs','Oʻqotar'],[13,1,'Jadiy','Togʻ echkisi']];
+const DAY=864e5,$=id=>document.getElementById(id);
+const ut=(y,m,d)=>new Date(Date.UTC(y,m-1,d,12));
+const nf=n=>n.toLocaleString('ru-RU').replace(/,/g,' ');
+const now=new Date(),T=ut(now.getFullYear(),now.getMonth()+1,now.getDate());
+let fH=null,fA=null;
+try{fH=new Intl.DateTimeFormat('en-u-ca-islamic-umalqura-nu-latn',{timeZone:'UTC',day:'numeric',month:'numeric',year:'numeric'});fA=new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura',{timeZone:'UTC',day:'numeric',month:'long',year:'numeric'})}catch(e){fH=null}
+const fl=Math.floor;
+function tab(d){const jd=fl(d.getTime()/DAY)+2440588;let l=jd-1948440+10632;const n=fl((l-1)/10631);l=l-10631*n+354;const j=fl((10985-l)/5316)*fl(50*l/17719)+fl(l/5670)*fl(43*l/15238);l=l-fl((30-j)/15)*fl(17719*j/50)-fl(j/16)*fl(15238*j/43)+29;const m=fl(24*l/709);return{y:30*n+j-30,m,d:l-fl(709*m/24)}}
+function hij(d){if(fH){try{const o={};for(const p of fH.formatToParts(d)){if(p.type==='day')o.d=+p.value;if(p.type==='month')o.m=+p.value;if(p.type==='year')o.y=parseInt(p.value)}if(o.y&&o.m&&o.d)return o}catch(e){}}return tab(d)}
+function h2g(y,m,d){const jd=d+Math.ceil(29.5*(m-1))+(y-1)*354+fl((3+11*y)/30)+1948439;const base=(jd-2440588)*DAY+DAY/2;for(const k of [0,-1,1,-2,2,-3,3]){const g=new Date(base+k*DAY),h=hij(g);if(h.y===y&&h.m===m&&h.d===d)return g}return null}
+const ar=d=>{try{return fA?fA.format(d):''}catch(e){return ''}};
+const gstr=d=>d.getUTCDate()+'-'+MG[d.getUTCMonth()]+' '+d.getUTCFullYear()+', '+WD[d.getUTCDay()];
+const hstr=h=>h.d+' '+HM[h.m-1]+' '+h.y;
+const leap=y=>y%4===0&&(y%100!==0||y%400===0);
+const dim=(y,m)=>new Date(Date.UTC(y,m,0)).getUTCDate();
+function muchal(y,m,d){const yr=(m<3||(m===3&&d<21))?y-1:y;return{yr,i:((yr-4)%12+12)%12}}
+function burj(m,d){let r=BURJ[0];for(const b of BURJ){if(m>b[0]||(m===b[0]&&d>=b[1]))r=b}if(m===12&&d>=22)r=BURJ[11];return r}
+function fasl(m){return m===12||m<=2?'Qish':m<=5?'Bahor':m<=8?'Yoz':'Kuz'}
+function opt(el,arr,sel){el.innerHTML=arr.map(([v,t])=>'<option value="'+v+'"'+(v==sel?' selected':'')+'>'+t+'</option>').join('')}
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+let st={d:14,m:6,y:1995,nm:'',night:false};
+try{const s=JSON.parse(localStorage.getItem('tk-state')||'null');if(s&&s.y)st=s}catch(e){}
+const years=[];for(let y=T.getUTCFullYear();y>=1900;y--)years.push([y,y]);
+opt($('yy'),years,st.y);opt($('mm'),M.map((t,i)=>[i+1,t]),st.m);
+$('nm').value=st.nm||'';$('night').checked=!!st.night;
+function fillDays(){const y=+$('yy').value,m=+$('mm').value,n=dim(y,m),cur=Math.min(+($('dd').value||st.d),n);opt($('dd'),Array.from({length:n},(_,i)=>[i+1,i+1]),cur)}
+fillDays();
+
+const th=hij(T);
+$('today').textContent='Bugun: '+gstr(T)+'  ·  '+hstr(th)+' h.';
+let summary='';
+
+function render(anim){
+ const y=+$('yy').value,m=+$('mm').value,d=+$('dd').value,nm=$('nm').value.trim(),night=$('night').checked;
+ st={d,m,y,nm,night};try{localStorage.setItem('tk-state',JSON.stringify(st))}catch(e){}
+ const B=ut(y,m,d);
+ if(B>T){$('facts').innerHTML='<div><dt>Xato</dt><dd>Bu sana hali kelmagan. Oʻtgan sanani tanlang.</dd></div>';return}
+ const HB=new Date(B.getTime()+(night?DAY:0)),bh=hij(HB);
+ const mu=muchal(y,m,d),bj=burj(m,d);
+ // age
+ let ay=T.getUTCFullYear()-y,am=T.getUTCMonth()+1-m,ad=T.getUTCDate()-d;
+ if(ad<0){am--;const pm=T.getUTCMonth()===0?12:T.getUTCMonth(),py=pm===12?T.getUTCFullYear()-1:T.getUTCFullYear();ad+=dim(py,pm)}
+ if(am<0){ay--;am+=12}
+ const days=Math.round((T-B)/DAY);
+ // next birthday
+ const nb=yy=>(m===2&&d===29&&!leap(yy))?ut(yy,2,28):ut(yy,m,d);
+ let N=nb(T.getUTCFullYear());if(N<T)N=nb(T.getUTCFullYear()+1);
+ const left=Math.round((N-T)/DAY),turn=N.getUTCFullYear()-y;
+ // hijri age and next hijri birthday
+ const ht=hij(T);let hy=ht.y-bh.y;if(ht.m<bh.m||(ht.m===bh.m&&ht.d<bh.d))hy--;
+ let NH=null;for(const yy of [ht.y,ht.y+1]){const g=h2g(yy,bh.m,bh.d)||h2g(yy,bh.m,bh.d-1);if(g&&g>=T){NH=g;break}}
+ // ramadans
+ let ram=0;for(let yy=bh.y;yy<=ht.y;yy++){const g=h2g(yy,9,1);if(g&&g>B&&g<=T)ram++}
+ const nextMu=mu.yr+12*Math.ceil((T.getUTCFullYear()-mu.yr+1)/12);
+ const wd=WD[B.getUTCDay()],nightNote=night?(B.getUTCDay()===4?' (Juma kechasi)':' kechasi'):'';
+ // sheet
+ $('sMo').textContent=M[m-1];$('sYr').textContent=y;$('sDay').textContent=d;$('sWd').textContent=wd+nightNote;
+ $('sName').textContent=nm?nm+' tugʻilgan kun':'';
+ $('sHu').textContent=hstr(bh)+' h.';$('sHa').textContent=ar(HB);
+ $('sMu').textContent=MU[mu.i]+' yili';
+ $('hd').textContent=nm?nm+' haqida':'Natija';
+ const rows=[
+  ['Yoshi','<span class="big">'+ay+' yosh</span><small>'+ay+' yil, '+am+' oy, '+ad+' kun</small>'],
+  ['Milodiy sana',esc(gstr(B))],
+  ['Hijriy sana',esc(hstr(bh))+' h.<small>'+esc(HM[bh.m-1])+' oyi'+(bh.m===9?', muborak Ramazon oyida tugʻilgan':'')+'</small>'],
+  ['Muchal yili',esc(MU[mu.i])+' yili ('+mu.yr+')<small>Keyingi '+esc(MU[mu.i])+' yili: '+nextMu+', Navroʻzdan</small>'],
+  ['Burj',esc(bj[2])+' ('+esc(bj[3])+')'],
+  ['Fasl',fasl(m)],
+  ['Keyingi tugʻilgan kun',left===0?'<span class="big">Bugun! Tabriklaymiz</span>':'<span class="big">'+left+' kun qoldi</span><small>'+esc(gstr(N))+', '+turn+' yosh toʻladi</small>'],
+  ['Hijriy yoshi',hy+' yosh'+(NH?'<small>Keyingi hijriy tugʻilgan kun: '+esc(gstr(NH))+'</small>':'')],
+  ['Yashagan vaqt',nf(days)+' kun<small>'+nf(fl(days/7))+' hafta · '+nf(days*24)+' soat</small>'],
+  ['Koʻrgan Ramazonlar',ram+' marta']
+ ];
+ $('facts').innerHTML=rows.map(r=>'<div><dt>'+r[0]+'</dt><dd>'+r[1]+'</dd></div>').join('');
+ summary=(nm?nm+'\n':'')+'Tugʻilgan sana: '+gstr(B)+'\nHijriy: '+hstr(bh)+' h. ('+ar(HB)+')\nMuchal: '+MU[mu.i]+' yili\nBurj: '+bj[2]+' ('+bj[3]+')\nYoshi: '+ay+' yil, '+am+' oy, '+ad+' kun (hijriy '+hy+' yosh)\nYashagan: '+nf(days)+' kun\nKeyingi tugʻilgan kun: '+gstr(N)+(left?' ('+left+' kun qoldi)':' (bugun!)');
+ wheel(mu.i);
+ if(anim){const s=$('sheet');s.classList.remove('flip');void s.offsetWidth;s.classList.add('flip')}
+}
+
+function wheel(on){
+ const cx=160,cy=160,R=150,r=62,n=12,parts=[];
+ const pt=(a,rr)=>[cx+rr*Math.sin(a),cy-rr*Math.cos(a)];
+ for(let i=0;i<n;i++){
+  const a0=(i-.5)*2*Math.PI/n,a1=(i+.5)*2*Math.PI/n,[x0,y0]=pt(a0,R),[x1,y1]=pt(a1,R),[x2,y2]=pt(a1,r),[x3,y3]=pt(a0,r),[tx,ty]=pt(i*2*Math.PI/n,(R+r)/2+4);
+  const fill=i===on?'var(--red)':(i%2?'var(--lap2)':'var(--bg)');
+  parts.push('<g'+(i===on?' class="on"':'')+'><path d="M'+x0.toFixed(1)+' '+y0.toFixed(1)+'A'+R+' '+R+' 0 0 1 '+x1.toFixed(1)+' '+y1.toFixed(1)+'L'+x2.toFixed(1)+' '+y2.toFixed(1)+'A'+r+' '+r+' 0 0 0 '+x3.toFixed(1)+' '+y3.toFixed(1)+'Z" fill="'+fill+'" stroke="var(--line)"/><text x="'+tx.toFixed(1)+'" y="'+ty.toFixed(1)+'" text-anchor="middle">'+MU[i]+'</text></g>');
+ }
+ const ny=muchal(T.getUTCFullYear(),T.getUTCMonth()+1,T.getUTCDate());
+ parts.push('<circle cx="160" cy="160" r="56" fill="var(--lap)"/><text x="160" y="154" text-anchor="middle" style="fill:#fff;font-size:12px">Hozir</text><text x="160" y="174" text-anchor="middle" style="fill:#fff;font-size:16px;font-weight:800">'+MU[ny.i]+'</text>');
+ $('wheel').innerHTML=parts.join('');
+ const base=st.y-(((st.y-4-on)%12)+12)%12,ys=[];for(let k=-3;k<=3;k++)ys.push(base+12*k);
+ const list=ys.filter(v=>v>=1900&&v<=T.getUTCFullYear()+12).sort((a,b)=>a-b);
+ $('wLeg').textContent=MU[on]+' yillari: '+list.join(', ');
+}
+
+// converter
+opt($('cD'),Array.from({length:30},(_,i)=>[i+1,i+1]),1);
+opt($('cM'),HM.map((t,i)=>[i+1,t]),9);
+$('cY').value=th.y;
+function conv(){
+ const d=+$('cD').value,m=+$('cM').value,y=+$('cY').value,o=$('cOut');
+ if(!y||y<1300||y>1500){o.textContent='Yilni 1300 dan 1500 gacha kiriting.';return}
+ const g=h2g(y,m,d);
+ if(!g){o.innerHTML='Bu yilda '+esc(HM[m-1])+' oyi 29 kun. 30-kun yoʻq.';return}
+ const mu=muchal(g.getUTCFullYear(),g.getUTCMonth()+1,g.getUTCDate());
+ o.innerHTML='<span class="big">'+esc(g.getUTCDate()+'-'+MG[g.getUTCMonth()]+' '+g.getUTCFullYear())+'</span>'+esc(WD[g.getUTCDay()])+' · '+esc(MU[mu.i])+' yili';
+}
+['cD','cM','cY'].forEach(id=>$(id).addEventListener('input',conv));
+conv();
+
+['yy','mm'].forEach(id=>$(id).addEventListener('change',()=>{fillDays();render(true)}));
+$('dd').addEventListener('change',()=>render(true));
+$('night').addEventListener('change',()=>render(false));
+$('nm').addEventListener('input',()=>render(false));
+$('f').addEventListener('submit',e=>e.preventDefault());
+$('nowBtn').addEventListener('click',()=>{$('yy').value=T.getUTCFullYear();$('mm').value=T.getUTCMonth()+1;fillDays();$('dd').value=T.getUTCDate();render(true)});
+let tt;function toast(t){const e=$('toast');e.textContent=t;e.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>e.classList.remove('on'),1800)}
+const AB=window.Android;
+if(AB){$('share').hidden=false;$('share').addEventListener('click',()=>AB.share(summary))}
+$('copy').addEventListener('click',async()=>{if(AB){AB.copy(summary);toast('Nusxalandi. Endi Telegramga joylashingiz mumkin');return}try{await navigator.clipboard.writeText(summary);toast('Nusxalandi. Endi Telegramga joylashingiz mumkin')}catch(e){toast('Nusxalab boʻlmadi')}});
+render(false);
+}
+</script>
+</body>
+</html>
