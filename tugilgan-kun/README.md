@@ -28,8 +28,15 @@ Qoʻlda qayta yigʻish: **Actions → Tugilgan kun APK → Run workflow**.
 - `app/src/main/java/.../Reminder.java` — kunlik eslatma bildirishnomalari.
 - `.gdignore` — Godot muharriri bu papkaga tegmasligi uchun.
 
-## Eslatma
+## Play Market uchun imzo kaliti
 
-- Hozircha *debug* imzo bilan yigʻiladi. Har bir yangi versiyani oʻrnatishdan oldin
-  eskisini oʻchirish kerak boʻlishi mumkin. Play Market uchun alohida imzo kaliti kerak.
+Repozitoriy **Settings → Secrets and variables → Actions** boʻlimiga 4 ta secret qoʻshing:
+`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`.
+Shundan keyin har yigʻishda Releases'ga imzolangan `TugilganKun-PlayMarket.aab` ham qoʻyiladi.
+Kalit qoʻshilmagan boʻlsa, faqat sinov (debug) APK yigʻiladi.
+
+Doʻkon matni, rasmlar va savollarga javoblar: `play-market/PLAY_MARKET.md`.
+Maxfiylik siyosati: `MAXFIYLIK.md`.
+
+## Eslatma
 - Hijriy sana Umm al-Quro taqvimi boʻyicha. Oʻzbekistonda 1 kun farq boʻlishi mumkin.
