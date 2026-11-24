@@ -19,6 +19,9 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.view.WindowInsets;
+import android.widget.FrameLayout;
+import android.window.OnBackInvokedDispatcher;
 
 import androidx.core.content.FileProvider;
 import androidx.webkit.WebViewAssetLoader;
@@ -66,7 +69,28 @@ public class MainActivity extends Activity {
         });
 
         web.addJavascriptInterface(new Bridge(), "Android");
-        setContentView(web);
+
+        // Android 15+ da ilova butun ekranni egallaydi: tizim panellari uchun joy qoldiramiz
+        final FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(0xFF1C3D96);
+        root.addView(web, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        if (Build.VERSION.SDK_INT >= 35) {
+            root.setOnApplyWindowInsetsListener((v, ins) -> {
+                android.graphics.Insets b = ins.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+                android.graphics.Insets k = ins.getInsets(WindowInsets.Type.ime());
+                FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) web.getLayoutParams();
+                lp.setMargins(b.left, b.top, b.right, Math.max(b.bottom, k.bottom));
+                web.setLayoutParams(lp);
+                return WindowInsets.CONSUMED;
+            });
+        }
+        setContentView(root);
+
+        if (Build.VERSION.SDK_INT >= 33) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::goBack);
+        }
 
         if (savedInstanceState != null) {
             web.restoreState(savedInstanceState);
@@ -81,10 +105,21 @@ public class MainActivity extends Activity {
         web.saveState(outState);
     }
 
+    /** Orqaga: avval ochiq oynani yopadi, keyin oldingi boʻlimga qaytadi, oxiri ilovadan chiqadi */
+    private void goBack() {
+        web.evaluateJavascript(
+                "(function(){var d=document.querySelector('dialog[open]');if(d){d.close();return 1}return 0})()",
+                r -> {
+                    if ("1".equals(r)) return;
+                    if (web.canGoBack()) web.goBack();
+                    else finish();
+                });
+    }
+
     @Override
+    @SuppressWarnings("deprecation")
     public void onBackPressed() {
-        if (web.canGoBack()) web.goBack();
-        else super.onBackPressed();
+        goBack();
     }
 
     private File writePng(String base64) throws Exception {
