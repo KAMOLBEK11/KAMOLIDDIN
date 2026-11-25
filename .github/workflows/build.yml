@@ -7,6 +7,9 @@ on:
       - '.github/workflows/build.yml'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -31,9 +34,24 @@ jobs:
       - name: APK yig'ish
         run: gradle assembleDebug --stacktrace
 
-      - name: APK ni saqlash
+      - name: APK ni saqlash (artifact)
         uses: actions/upload-artifact@v4
         with:
           name: oila-nazorat-apk
           path: oila-nazorat/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+      - name: APK ni 'apk' tarmog'iga yuklash
+        working-directory: ${{ github.workspace }}
+        run: |
+          APK=oila-nazorat/app/build/outputs/apk/debug/app-debug.apk
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          cp "$APK" /tmp/app-debug.apk
+          git checkout --orphan apk
+          git rm -rf . >/dev/null 2>&1 || true
+          mkdir -p out
+          cp /tmp/app-debug.apk out/app-debug.apk
+          git add -f out/app-debug.apk
+          git commit -m "APK ${{ github.sha }}"
+          git push -f origin apk
