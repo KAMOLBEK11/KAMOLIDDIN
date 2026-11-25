@@ -27,7 +27,7 @@ class ControlService : AccessibilityService() {
         if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val pkg = event.packageName?.toString() ?: return
         if (pkg == packageName) return
-        if (Blocker.shouldBlock(this, pkg)) {
+        if (Rules.shouldBlockApp(this, pkg)) {
             // Bola "bloklandi" yozuvini ko'rmaydi — ilova shunchaki yopiladi.
             performGlobalAction(GLOBAL_ACTION_HOME)
         }

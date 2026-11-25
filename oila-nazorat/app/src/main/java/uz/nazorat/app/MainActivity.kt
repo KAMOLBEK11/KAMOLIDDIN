@@ -21,16 +21,18 @@ class MainActivity : AppCompatActivity() {
         root.addView(statusCard(lang))
 
         // Funksiya bo'limlari
+        root.addView(Ui.featureCard(this, "🔐", Lang.get("perm_title", lang)) {
+            startActivity(Intent(this, PermissionsActivity::class.java))
+        })
         root.addView(Ui.featureCard(this, "⚡", Lang.get("f_trigger", lang)) {
             startActivity(Intent(this, TriggerSettingsActivity::class.java))
         })
         root.addView(Ui.featureCard(this, "🚫", Lang.get("f_apps", lang)) {
             startActivity(Intent(this, AppListActivity::class.java))
         })
-        root.addView(Ui.featureCard(this, "⏰", Lang.get("f_schedule", lang)) {
-            startActivity(Intent(this, ScheduleActivity::class.java))
+        root.addView(Ui.featureCard(this, "📶", Lang.get("f_internet", lang)) {
+            startActivity(Intent(this, InternetActivity::class.java))
         })
-        root.addView(Ui.featureCard(this, "📶", Lang.get("f_internet", lang)) { soon() })
         root.addView(Ui.featureCard(this, "🌐", Lang.get("f_sites", lang)) { soon() })
         root.addView(Ui.featureCard(this, "📊", Lang.get("f_reports", lang)) {
             startActivity(Intent(this, ReportsActivity::class.java))
@@ -38,8 +40,14 @@ class MainActivity : AppCompatActivity() {
         root.addView(Ui.featureCard(this, "🗺️", Lang.get("f_location", lang)) {
             startActivity(Intent(this, LocationActivity::class.java))
         })
+        root.addView(Ui.featureCard(this, "🔑", Lang.get("change_pin", lang)) {
+            startActivity(Intent(this, ChangePinActivity::class.java))
+        })
         root.addView(Ui.featureCard(this, "💳", Lang.get("f_license", lang)) {
             startActivity(Intent(this, LicenseActivity::class.java))
+        })
+        root.addView(Ui.featureCard(this, "🗑️", Lang.get("uninstall_title", lang)) {
+            uninstallFlow(lang)
         })
 
         val scroll = ScrollView(this)
@@ -84,5 +92,33 @@ class MainActivity : AppCompatActivity() {
             this, Lang.get("soon", Prefs.getLang(this)),
             android.widget.Toast.LENGTH_SHORT
         ).show()
+    }
+
+    private fun uninstallFlow(lang: String) {
+        val input = android.widget.EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            hint = Lang.get("enter_pin", lang)
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(Lang.get("uninstall_title", lang))
+            .setMessage(Lang.get("uninstall_pin", lang))
+            .setView(input)
+            .setPositiveButton(Lang.get("continue", lang)) { _, _ ->
+                if (input.text.toString() == Prefs.getPin(this)) doUninstall()
+                else android.widget.Toast.makeText(this, Lang.get("pin_wrong", lang), android.widget.Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun doUninstall() {
+        try {
+            val dpm = getSystemService(android.content.Context.DEVICE_POLICY_SERVICE) as android.app.admin.DevicePolicyManager
+            val cn = android.content.ComponentName(this, AdminReceiver::class.java)
+            if (dpm.isAdminActive(cn)) dpm.removeActiveAdmin(cn)
+        } catch (e: Exception) {}
+        try {
+            startActivity(Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$packageName")))
+        } catch (e: Exception) {}
     }
 }

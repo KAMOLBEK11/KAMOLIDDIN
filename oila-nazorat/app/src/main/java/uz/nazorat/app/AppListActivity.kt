@@ -2,12 +2,16 @@ package uz.nazorat.app
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.Gravity
 import android.widget.CheckBox
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.card.MaterialCardView
 
-/** Bloklanadigan ilovalarni tanlash. */
+/** Bloklanadigan/internetdan uziladigan ilovalarni tanlash + rejim. */
 class AppListActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -17,54 +21,68 @@ class AppListActivity : AppCompatActivity() {
         root.addView(Ui.title(this, Lang.get("block_title", lang)))
         root.addView(Ui.body(this, Lang.get("block_hint", lang)))
 
-        val pm = packageManager
-        val main = Intent(Intent.ACTION_MAIN, null).apply {
-            addCategory(Intent.CATEGORY_LAUNCHER)
+        // Global qoida tugmasi
+        val gBtn = Ui.button(this, "⚙ " + Lang.get("global_rule", lang), Ui.CARD)
+        gBtn.setOnClickListener {
+            startActivity(Intent(this, RuleActivity::class.java).putExtra("global", true))
         }
+        root.addView(gBtn)
+
+        val pm = packageManager
+        val main = Intent(Intent.ACTION_MAIN, null).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
         val apps = pm.queryIntentActivities(main, 0)
             .mapNotNull { it.activityInfo?.packageName }
             .filter { it != packageName }
             .distinct()
-            .sortedBy { pkg ->
-                try { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString().lowercase() }
-                catch (e: Exception) { pkg }
-            }
+            .sortedBy { label(it).lowercase() }
 
-        val blocked = Prefs.blockedApps(this).toMutableSet()
-        val boxes = mutableListOf<Pair<String, CheckBox>>()
+        val included = Rules.includedApps(this)
 
         for (pkg in apps) {
-            val label = try {
-                pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
-            } catch (e: Exception) { pkg }
-            val cb = CheckBox(this).apply {
-                text = label
-                setTextColor(Ui.TEXT)
-                textSize = 16f
-                isChecked = blocked.contains(pkg)
+            val card = MaterialCardView(this).apply {
+                radius = Ui.dp(this@AppListActivity, 14).toFloat()
+                setCardBackgroundColor(Ui.CARD); cardElevation = 0f
                 val lp = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-                lp.topMargin = Ui.dp(this@AppListActivity, 6)
-                layoutParams = lp
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                lp.topMargin = Ui.dp(this@AppListActivity, 8); layoutParams = lp
             }
-            boxes.add(pkg to cb)
-            root.addView(cb)
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+                setPadding(Ui.dp(this@AppListActivity, 12), Ui.dp(this@AppListActivity, 10),
+                    Ui.dp(this@AppListActivity, 12), Ui.dp(this@AppListActivity, 10))
+            }
+            val icon = ImageView(this).apply {
+                try { setImageDrawable(pm.getApplicationIcon(pkg)) } catch (e: Exception) {}
+                val s = Ui.dp(this@AppListActivity, 40)
+                layoutParams = LinearLayout.LayoutParams(s, s).also { it.rightMargin = Ui.dp(this@AppListActivity, 12) }
+            }
+            val name = TextView(this).apply {
+                text = label(pkg); setTextColor(Ui.TEXT); textSize = 16f
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            val gear = TextView(this).apply {
+                text = "⚙"; textSize = 22f; setPadding(Ui.dp(this@AppListActivity, 8), 0, Ui.dp(this@AppListActivity, 8), 0)
+                setOnClickListener {
+                    startActivity(Intent(this@AppListActivity, RuleActivity::class.java).putExtra("pkg", pkg))
+                }
+            }
+            val cb = CheckBox(this).apply {
+                isChecked = included.contains(pkg)
+                setOnCheckedChangeListener { _, checked ->
+                    if (checked) Rules.addApp(this@AppListActivity, pkg) else Rules.removeApp(this@AppListActivity, pkg)
+                }
+            }
+            row.addView(icon); row.addView(name); row.addView(gear); row.addView(cb)
+            card.addView(row)
+            root.addView(card)
         }
-
-        val save = Ui.button(this, Lang.get("save", lang), Ui.GREEN)
-        save.setOnClickListener {
-            val set = boxes.filter { it.second.isChecked }.map { it.first }.toSet()
-            Prefs.setBlockedApps(this, set)
-            android.widget.Toast.makeText(this, Lang.get("saved", lang), android.widget.Toast.LENGTH_SHORT).show()
-            finish()
-        }
-        root.addView(save)
 
         val scroll = ScrollView(this)
-        scroll.setBackgroundColor(Ui.BG)
-        scroll.addView(root)
+        scroll.setBackgroundColor(Ui.BG); scroll.addView(root)
         setContentView(scroll)
     }
+
+    private fun label(pkg: String): String = try {
+        packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString()
+    } catch (e: Exception) { pkg }
 }

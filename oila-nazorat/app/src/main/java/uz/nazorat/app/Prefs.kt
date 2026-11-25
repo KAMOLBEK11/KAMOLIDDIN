@@ -69,4 +69,20 @@ object Prefs {
     fun setScheduleFrom(ctx: Context, h: Int) = sp(ctx).edit().putInt("sch_from", h).apply()
     fun scheduleTo(ctx: Context): Int = sp(ctx).getInt("sch_to", 7)
     fun setScheduleTo(ctx: Context, h: Int) = sp(ctx).edit().putInt("sch_to", h).apply()
+
+    // --- Qoidalar (4 rejim) ---
+    // rules: JSON obyekt { "paket": {"a":0,"m":0,"p1":0,"p2":0,"arm":0} }
+    fun rulesJson(ctx: Context): String = sp(ctx).getString("rules", "{}") ?: "{}"
+    fun setRulesJson(ctx: Context, s: String) = sp(ctx).edit().putString("rules", s).apply()
+
+    // Global qoida (hamma tanlangan ilovaga bitta)
+    fun globalOn(ctx: Context): Boolean = sp(ctx).getBoolean("g_on", false)
+    fun setGlobalOn(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("g_on", v).apply()
+    fun globalRuleJson(ctx: Context): String =
+        sp(ctx).getString("g_rule", """{"a":0,"m":0,"p1":3,"p2":0,"arm":0}""") ?: """{"a":0,"m":0,"p1":3,"p2":0,"arm":0}"""
+    fun setGlobalRuleJson(ctx: Context, s: String) = sp(ctx).edit().putString("g_rule", s).apply()
+
+    // Internet (VPN) umumiy kalit
+    fun vpnEnabled(ctx: Context): Boolean = sp(ctx).getBoolean("vpn_on", false)
+    fun setVpnEnabled(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("vpn_on", v).apply()
 }

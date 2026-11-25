@@ -48,6 +48,18 @@ class PinActivity : AppCompatActivity() {
             }
         }
         root.addView(btn)
+
+        if (!creating) {
+            val forgot = android.widget.TextView(this).apply {
+                text = Lang.get("forgot_pin", lang)
+                setTextColor(Ui.BLUE); textSize = 15f
+                setPadding(0, Ui.dp(this@PinActivity, 18), 0, 0)
+                setOnClickListener {
+                    startActivity(Intent(this@PinActivity, ForgotPinActivity::class.java))
+                }
+            }
+            root.addView(forgot)
+        }
         setContentView(root)
     }
 

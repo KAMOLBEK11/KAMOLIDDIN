@@ -83,6 +83,13 @@ object LicenseManager {
         return sha256(deviceCode + days + SECRET).uppercase().substring(0, 10)
     }
 
+    /** PIN reset kaliti (bot keyin faqat ro'yxatdagi ota-onaga yuboradi). */
+    fun resetKeyExpected(ctx: Context): String =
+        sha256(deviceCode(ctx) + "RESET" + SECRET).uppercase().substring(0, 10)
+
+    fun verifyReset(ctx: Context, key: String): Boolean =
+        key.trim().uppercase().replace(" ", "") == resetKeyExpected(ctx)
+
     private fun sha256(s: String): String {
         val md = MessageDigest.getInstance("SHA-256")
         val b = md.digest(s.toByteArray(Charsets.UTF_8))
