@@ -3,7 +3,12 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
@@ -39,6 +44,8 @@
         <activity android:name=".InternetActivity" android:exported="false" />
         <activity android:name=".ChangePinActivity" android:exported="false" />
         <activity android:name=".ForgotPinActivity" android:exported="false" />
+        <activity android:name=".SitesActivity" android:exported="false" />
+        <activity android:name=".MapActivity" android:exported="false" />
 
         <service
             android:name=".ControlService"
@@ -60,6 +67,11 @@
                 <action android:name="android.net.VpnService" />
             </intent-filter>
         </service>
+
+        <service
+            android:name=".LocationLogService"
+            android:foregroundServiceType="location"
+            android:exported="false" />
 
         <receiver
             android:name=".AdminReceiver"

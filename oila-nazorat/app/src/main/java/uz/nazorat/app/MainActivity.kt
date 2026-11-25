@@ -33,7 +33,9 @@ class MainActivity : AppCompatActivity() {
         root.addView(Ui.featureCard(this, "📶", Lang.get("f_internet", lang)) {
             startActivity(Intent(this, InternetActivity::class.java))
         })
-        root.addView(Ui.featureCard(this, "🌐", Lang.get("f_sites", lang)) { soon() })
+        root.addView(Ui.featureCard(this, "🌐", Lang.get("f_sites", lang)) {
+            startActivity(Intent(this, SitesActivity::class.java))
+        })
         root.addView(Ui.featureCard(this, "📊", Lang.get("f_reports", lang)) {
             startActivity(Intent(this, ReportsActivity::class.java))
         })

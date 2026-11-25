@@ -23,13 +23,42 @@ class ControlService : AccessibilityService() {
     private val handler = Handler(Looper.getMainLooper())
     private var holdRunnable: Runnable? = null
 
+    private var lastSiteCheck = 0L
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
+        val type = event?.eventType ?: return
         val pkg = event.packageName?.toString() ?: return
         if (pkg == packageName) return
-        if (Rules.shouldBlockApp(this, pkg)) {
-            // Bola "bloklandi" yozuvini ko'rmaydi — ilova shunchaki yopiladi.
+
+        // 1) Ilovani bloklash
+        if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && Rules.shouldBlockApp(this, pkg)) {
             performGlobalAction(GLOBAL_ACTION_HOME)
+            return
+        }
+
+        // 2) Sayt filtri (brauzerlarda)
+        if (Prefs.siteFilterOn(this) && SiteFilter.browsers.contains(pkg) &&
+            (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+             type == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED)) {
+            val now = System.currentTimeMillis()
+            if (now - lastSiteCheck < 600) return
+            lastSiteCheck = now
+            checkBrowser()
+        }
+    }
+
+    private fun checkBrowser() {
+        val root = rootInActiveWindow ?: return
+        var url: String? = null
+        for (id in SiteFilter.urlBarIds) {
+            val nodes = try { root.findAccessibilityNodeInfosByViewId(id) } catch (e: Exception) { null }
+            if (!nodes.isNullOrEmpty()) {
+                val t = nodes[0].text?.toString()
+                if (!t.isNullOrBlank()) { url = t; break }
+            }
+        }
+        if (SiteFilter.isBlocked(this, url)) {
+            performGlobalAction(GLOBAL_ACTION_BACK)
         }
     }
 

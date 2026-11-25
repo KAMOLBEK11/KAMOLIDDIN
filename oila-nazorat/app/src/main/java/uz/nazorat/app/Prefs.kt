@@ -85,4 +85,20 @@ object Prefs {
     // Internet (VPN) umumiy kalit
     fun vpnEnabled(ctx: Context): Boolean = sp(ctx).getBoolean("vpn_on", false)
     fun setVpnEnabled(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("vpn_on", v).apply()
+
+    // --- Sayt filtri ---
+    fun siteFilterOn(ctx: Context): Boolean = sp(ctx).getBoolean("sf_on", false)
+    fun setSiteFilterOn(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("sf_on", v).apply()
+    fun adultBlockOn(ctx: Context): Boolean = sp(ctx).getBoolean("sf_adult", true)
+    fun setAdultBlockOn(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("sf_adult", v).apply()
+    fun blockedDomains(ctx: Context): Set<String> =
+        HashSet(sp(ctx).getStringSet("sf_domains", emptySet()) ?: emptySet())
+    fun setBlockedDomains(ctx: Context, s: Set<String>) =
+        sp(ctx).edit().putStringSet("sf_domains", s).apply()
+
+    // --- Joylashuv ---
+    fun locationOn(ctx: Context): Boolean = sp(ctx).getBoolean("loc_on", false)
+    fun setLocationOn(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("loc_on", v).apply()
+    fun locHistory(ctx: Context): String = sp(ctx).getString("loc_hist", "[]") ?: "[]"
+    fun setLocHistory(ctx: Context, s: String) = sp(ctx).edit().putString("loc_hist", s).apply()
 }

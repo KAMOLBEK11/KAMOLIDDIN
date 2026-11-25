@@ -32,6 +32,9 @@ class PermissionsActivity : AppCompatActivity() {
             val i = android.net.VpnService.prepare(this)
             if (i != null) startActivity(i)
         })
+        root.addView(permCard("📍", "p_location", locGranted(), lang) {
+            open(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+        })
         root.addView(permCard("🔋", "p_battery", null, lang) {
             try { open(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
                 Uri.parse("package:$packageName"))) }
@@ -63,6 +66,10 @@ class PermissionsActivity : AppCompatActivity() {
             try { startActivity(Intent(Settings.ACTION_SETTINGS)) } catch (e2: Exception) {}
         }
     }
+
+    private fun locGranted(): Boolean =
+        androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
 
     private fun accessibilityOn(): Boolean {
         val s = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
