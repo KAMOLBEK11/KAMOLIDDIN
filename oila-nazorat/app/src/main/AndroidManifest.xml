@@ -49,6 +49,7 @@
         <activity android:name=".SitesActivity" android:exported="false" />
         <activity android:name=".MapActivity" android:exported="false" />
         <activity android:name=".HelpActivity" android:exported="false" />
+        <activity android:name=".ControlExtraActivity" android:exported="false" />
 
         <service
             android:name=".ControlService"

@@ -18,17 +18,20 @@ object Notif {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             if (nm.getNotificationChannel(CH) == null) {
-                val ch = NotificationChannel(CH, "VPN", NotificationManager.IMPORTANCE_MIN)
+                val chName = if (BuildConfig.OPEN) "Nazorat" else "VPN"
+                val ch = NotificationChannel(CH, chName, NotificationManager.IMPORTANCE_MIN)
                 ch.setShowBadge(false)
                 nm.createNotificationChannel(ch)
             }
         }
     }
 
-    fun build(ctx: Context, text: String): Notification {
+    fun build(ctx: Context, textHidden: String): Notification {
         ensureChannel(ctx)
+        val title = if (BuildConfig.OPEN) "Oila Nazorat" else "VPN"
+        val text = if (BuildConfig.OPEN) "Nazorat aktiv" else textHidden
         return NotificationCompat.Builder(ctx, CH)
-            .setContentTitle("VPN")
+            .setContentTitle(title)
             .setContentText(text)
             .setSmallIcon(R.drawable.ic_launcher)
             .setPriority(NotificationCompat.PRIORITY_MIN)

@@ -25,6 +25,15 @@ class ControlService : AccessibilityService() {
 
     private var lastSiteCheck = 0L
 
+    private val STORE_PKGS = setOf(
+        "com.android.vending",                       // Google Play Market
+        "com.google.android.packageinstaller",        // o'rnatuvchi
+        "com.android.packageinstaller",
+        "com.google.android.feedback",
+        "com.xiaomi.market",                          // Xiaomi GetApps
+        "com.huawei.appmarket"                        // Huawei AppGallery
+    )
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         // Doimiy xizmat — tizim (ayniqsa Xiaomi/Tecno) uni osonlikcha o'ldira olmaydi
@@ -38,6 +47,12 @@ class ControlService : AccessibilityService() {
 
         // 1) Ilovani bloklash
         if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && Rules.shouldBlockApp(this, pkg)) {
+            performGlobalAction(GLOBAL_ACTION_HOME)
+            return
+        }
+
+        // 1b) Play Market / ilova o'rnatishni bloklash
+        if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && Prefs.playStoreBlocked(this) && STORE_PKGS.contains(pkg)) {
             performGlobalAction(GLOBAL_ACTION_HOME)
             return
         }

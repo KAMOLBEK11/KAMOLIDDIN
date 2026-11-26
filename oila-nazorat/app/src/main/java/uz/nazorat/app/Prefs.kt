@@ -96,6 +96,12 @@ object Prefs {
     fun setBlockedDomains(ctx: Context, s: Set<String>) =
         sp(ctx).edit().putStringSet("sf_domains", s).apply()
 
+    // --- Kamera / Play Market ---
+    fun cameraBlocked(ctx: Context): Boolean = sp(ctx).getBoolean("cam_block", false)
+    fun setCameraBlocked(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("cam_block", v).apply()
+    fun playStoreBlocked(ctx: Context): Boolean = sp(ctx).getBoolean("ps_block", false)
+    fun setPlayStoreBlocked(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("ps_block", v).apply()
+
     // --- Joylashuv ---
     fun locationOn(ctx: Context): Boolean = sp(ctx).getBoolean("loc_on", false)
     fun setLocationOn(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("loc_on", v).apply()

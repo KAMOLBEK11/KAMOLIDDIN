@@ -27,9 +27,14 @@ class MainActivity : AppCompatActivity() {
         root.addView(Ui.featureCard(this, "ℹ️", Lang.get("help_title", lang)) {
             startActivity(Intent(this, HelpActivity::class.java))
         })
-        root.addView(Ui.featureCard(this, "🙈", Lang.get("hide_notif", lang)) {
-            hideNotif()
+        root.addView(Ui.featureCard(this, "🎥", Lang.get("extra_title", lang)) {
+            startActivity(Intent(this, ControlExtraActivity::class.java))
         })
+        if (!BuildConfig.OPEN) {
+            root.addView(Ui.featureCard(this, "🙈", Lang.get("hide_notif", lang)) {
+                hideNotif()
+            })
+        }
         root.addView(Ui.featureCard(this, "⚡", Lang.get("f_trigger", lang)) {
             startActivity(Intent(this, TriggerSettingsActivity::class.java))
         })

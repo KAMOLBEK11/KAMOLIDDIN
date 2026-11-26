@@ -11,8 +11,24 @@ android {
         applicationId = "uz.nazorat.app"
         minSdk = 24
         targetSdk = 33
-        versionCode = 7
-        versionName = "0.7"
+        versionCode = 8
+        versionName = "0.8"
+    }
+
+    buildFeatures { buildConfig = true }
+
+    flavorDimensions += "mode"
+    productFlavors {
+        create("yashirin") {
+            dimension = "mode"
+            // applicationId default: uz.nazorat.app ; nom: "VPN"
+            buildConfigField("boolean", "OPEN", "false")
+        }
+        create("ochiq") {
+            dimension = "mode"
+            applicationId = "uz.nazorat.ochiq"
+            buildConfigField("boolean", "OPEN", "true")
+        }
     }
 
     buildTypes {
