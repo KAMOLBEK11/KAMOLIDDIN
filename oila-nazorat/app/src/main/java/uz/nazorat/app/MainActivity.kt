@@ -24,6 +24,9 @@ class MainActivity : AppCompatActivity() {
         root.addView(Ui.featureCard(this, "🔐", Lang.get("perm_title", lang)) {
             startActivity(Intent(this, PermissionsActivity::class.java))
         })
+        root.addView(Ui.featureCard(this, "ℹ️", Lang.get("help_title", lang)) {
+            startActivity(Intent(this, HelpActivity::class.java))
+        })
         root.addView(Ui.featureCard(this, "⚡", Lang.get("f_trigger", lang)) {
             startActivity(Intent(this, TriggerSettingsActivity::class.java))
         })
@@ -56,6 +59,14 @@ class MainActivity : AppCompatActivity() {
         scroll.setBackgroundColor(Ui.BG)
         scroll.addView(root)
         setContentView(scroll)
+
+        // Yengil kirish animatsiyasi — kartalar ketma-ket paydo bo'ladi
+        for (i in 0 until root.childCount) {
+            val v = root.getChildAt(i)
+            v.alpha = 0f
+            v.translationY = Ui.dp(this, 16).toFloat()
+            v.animate().alpha(1f).translationY(0f).setStartDelay(40L * i).setDuration(260).start()
+        }
     }
 
     private fun statusCard(lang: String): MaterialCardView {
@@ -86,6 +97,10 @@ class MainActivity : AppCompatActivity() {
         card.setOnClickListener {
             startActivity(Intent(this, LicenseActivity::class.java))
         }
+        // Yengil "nafas olish" animatsiyasi
+        val pulse = android.animation.ObjectAnimator.ofFloat(card, "alpha", 1f, 0.75f, 1f)
+        pulse.duration = 2200; pulse.repeatCount = android.animation.ValueAnimator.INFINITE
+        pulse.start()
         return card
     }
 

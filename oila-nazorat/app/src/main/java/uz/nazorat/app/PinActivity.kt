@@ -15,10 +15,13 @@ import androidx.appcompat.app.AppCompatActivity
  */
 class PinActivity : AppCompatActivity() {
 
+    private var gate = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val lang = Prefs.getLang(this)
-        val creating = !Prefs.hasPin(this)
+        gate = intent.getBooleanExtra("gate", false)
+        val creating = !gate && !Prefs.hasPin(this)
 
         val root = Ui.screen(this)
         root.addView(Ui.title(this, Lang.get(if (creating) "create_pin" else "enter_pin", lang)))
@@ -80,8 +83,20 @@ class PinActivity : AppCompatActivity() {
     }
 
     private fun go() {
+        if (gate) { finish(); return }
         startActivity(Intent(this, MainActivity::class.java))
         finish()
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (gate) {
+            // PIN'ni aylanib o'tib bo'lmaydi — bosh ekranga chiqaramiz
+            val i = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            try { startActivity(i) } catch (e: Exception) {}
+        } else {
+            super.onBackPressed()
+        }
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()

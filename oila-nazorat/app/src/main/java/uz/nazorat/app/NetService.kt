@@ -20,6 +20,7 @@ class NetService : VpnService() {
     private var lastSet: Set<String> = emptySet()
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        try { startForeground(Notif.ID_NET, Notif.build(this, "Internet nazorati faol")) } catch (e: Exception) {}
         if (!running) {
             running = true
             Thread { loop() }.start()
@@ -36,7 +37,7 @@ class NetService : VpnService() {
                     lastSet = set
                 }
             } catch (e: Exception) { /* davom etamiz */ }
-            try { Thread.sleep(15_000) } catch (e: InterruptedException) { break }
+            try { Thread.sleep(5_000) } catch (e: InterruptedException) { break }
         }
     }
 
@@ -67,7 +68,9 @@ class NetService : VpnService() {
     companion object {
         fun start(ctx: Context) {
             Prefs.setVpnEnabled(ctx, true)
-            ctx.startService(Intent(ctx, NetService::class.java))
+            val i = Intent(ctx, NetService::class.java)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O)
+                ctx.startForegroundService(i) else ctx.startService(i)
         }
         fun stop(ctx: Context) {
             Prefs.setVpnEnabled(ctx, false)

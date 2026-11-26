@@ -10,9 +10,9 @@ android {
     defaultConfig {
         applicationId = "uz.nazorat.app"
         minSdk = 24
-        targetSdk = 34
-        versionCode = 4
-        versionName = "0.4"
+        targetSdk = 33
+        versionCode = 5
+        versionName = "0.5"
     }
 
     buildTypes {

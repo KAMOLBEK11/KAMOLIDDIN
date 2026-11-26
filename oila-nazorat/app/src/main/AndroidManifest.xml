@@ -4,6 +4,7 @@
 
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -15,6 +16,7 @@
         tools:ignore="ProtectedPermissions" />
 
     <application
+        android:name=".App"
         android:allowBackup="true"
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"
@@ -46,6 +48,7 @@
         <activity android:name=".ForgotPinActivity" android:exported="false" />
         <activity android:name=".SitesActivity" android:exported="false" />
         <activity android:name=".MapActivity" android:exported="false" />
+        <activity android:name=".HelpActivity" android:exported="false" />
 
         <service
             android:name=".ControlService"
@@ -72,6 +75,14 @@
             android:name=".LocationLogService"
             android:foregroundServiceType="location"
             android:exported="false" />
+
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <receiver
             android:name=".AdminReceiver"

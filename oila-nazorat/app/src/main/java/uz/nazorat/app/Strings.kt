@@ -422,7 +422,9 @@ object Lang {
         "location_hint2" to mapOf("uz_lat" to "Joylashuv telefon ichida yoziladi. Faqat ota-ona ko‘radi. Masofadan kuzatish botdan keyin bo‘ladi.","uz_cyr" to "Жойлашув телефон ичида ёзилади. Фақат ота-она кўради. Масофадан кузатиш ботдан кейин бўлади.","uz_new" to "Joylaşuv telefon içida yoziladi. Faqat ota-ona koʻradi. Masofadan kuzatiş botdan keyin boʻladi.","ru" to "Местоположение пишется в телефоне. Видит только родитель. Удалённый просмотр — после бота.","en" to "Location is stored on the phone. Only the parent sees it. Remote view comes with the bot."),
         "loc_switch" to mapOf("uz_lat" to "Joylashuvni yozish","uz_cyr" to "Жойлашувни ёзиш","uz_new" to "Joylaşuvni yoziş","ru" to "Записывать местоположение","en" to "Record location"),
         "show_map" to mapOf("uz_lat" to "Xaritada ko‘rish","uz_cyr" to "Харитада кўриш","uz_new" to "Xaritada koʻriş","ru" to "Показать на карте","en" to "Show on map"),
-        "p_location" to mapOf("uz_lat" to "Joylashuv ruxsati","uz_cyr" to "Жойлашув рухсати","uz_new" to "Joylaşuv ruxsati","ru" to "Разрешение геолокации","en" to "Location permission")
+        "p_location" to mapOf("uz_lat" to "Joylashuv ruxsati","uz_cyr" to "Жойлашув рухсати","uz_new" to "Joylaşuv ruxsati","ru" to "Разрешение геолокации","en" to "Location permission"),
+        "p_autostart" to mapOf("uz_lat" to "Avtozapusk (fonda ishlashi uchun)","uz_cyr" to "Автозапуск (фонда ишлаши учун)","uz_new" to "Avtozapusk (fonda işlaşi uçun)","ru" to "Автозапуск (для работы в фоне)","en" to "Autostart (to run in background)"),
+        "help_title" to mapOf("uz_lat" to "Dastur qanday ishlaydi","uz_cyr" to "Дастур қандай ишлайди","uz_new" to "Dastur qanday işlaydi","ru" to "Как работает приложение","en" to "How the app works")
     )
 
     fun get(key: String, lang: String): String {

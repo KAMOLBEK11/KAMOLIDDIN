@@ -25,6 +25,12 @@ class ControlService : AccessibilityService() {
 
     private var lastSiteCheck = 0L
 
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        // Doimiy xizmat — tizim (ayniqsa Xiaomi/Tecno) uni osonlikcha o'ldira olmaydi
+        try { startForeground(Notif.ID_CTRL, Notif.build(this, "Faol")) } catch (e: Exception) {}
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val type = event?.eventType ?: return
         val pkg = event.packageName?.toString() ?: return
