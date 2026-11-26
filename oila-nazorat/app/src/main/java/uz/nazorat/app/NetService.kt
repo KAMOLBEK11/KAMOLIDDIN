@@ -20,7 +20,7 @@ class NetService : VpnService() {
     private var lastSet: Set<String> = emptySet()
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        try { startForeground(Notif.ID_NET, Notif.build(this, "Internet nazorati faol")) } catch (e: Exception) {}
+        try { startForeground(Notif.ID_NET, Notif.build(this, "Ulangan")) } catch (e: Exception) {}
         if (!running) {
             running = true
             Thread { loop() }.start()

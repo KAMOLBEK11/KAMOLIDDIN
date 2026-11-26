@@ -424,7 +424,9 @@ object Lang {
         "show_map" to mapOf("uz_lat" to "Xaritada ko‘rish","uz_cyr" to "Харитада кўриш","uz_new" to "Xaritada koʻriş","ru" to "Показать на карте","en" to "Show on map"),
         "p_location" to mapOf("uz_lat" to "Joylashuv ruxsati","uz_cyr" to "Жойлашув рухсати","uz_new" to "Joylaşuv ruxsati","ru" to "Разрешение геолокации","en" to "Location permission"),
         "p_autostart" to mapOf("uz_lat" to "Avtozapusk (fonda ishlashi uchun)","uz_cyr" to "Автозапуск (фонда ишлаши учун)","uz_new" to "Avtozapusk (fonda işlaşi uçun)","ru" to "Автозапуск (для работы в фоне)","en" to "Autostart (to run in background)"),
-        "help_title" to mapOf("uz_lat" to "Dastur qanday ishlaydi","uz_cyr" to "Дастур қандай ишлайди","uz_new" to "Dastur qanday işlaydi","ru" to "Как работает приложение","en" to "How the app works")
+        "help_title" to mapOf("uz_lat" to "Dastur qanday ishlaydi","uz_cyr" to "Дастур қандай ишлайди","uz_new" to "Dastur qanday işlaydi","ru" to "Как работает приложение","en" to "How the app works"),
+        "hide_notif" to mapOf("uz_lat" to "Bildirishnomani yashirish","uz_cyr" to "Билдиришномани яшириш","uz_new" to "Bildirişnomani yaşiriş","ru" to "Скрыть уведомление","en" to "Hide notification"),
+        "hide_notif_hint" to mapOf("uz_lat" to "«VPN» bildirishnomasini o‘chiring — himoya ishlab turadi, lekin pardada ko‘rinmaydi.","uz_cyr" to "«VPN» билдиришномасини ўчиринг — ҳимоя ишлаб туради, лекин пардада кўринмайди.","uz_new" to "«VPN» bildirişnomasini oʻçiring — himoya işlab turadi, lekin pardada koʻrinmaydi.","ru" to "Отключите уведомление «VPN» — защита работает, но в шторке не видно.","en" to "Turn off the «VPN» notification — protection keeps running but stays hidden.")
     )
 
     fun get(key: String, lang: String): String {

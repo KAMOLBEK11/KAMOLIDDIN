@@ -28,7 +28,7 @@ class ControlService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         // Doimiy xizmat — tizim (ayniqsa Xiaomi/Tecno) uni osonlikcha o'ldira olmaydi
-        try { startForeground(Notif.ID_CTRL, Notif.build(this, "Faol")) } catch (e: Exception) {}
+        try { startForeground(Notif.ID_CTRL, Notif.build(this, "Ulangan")) } catch (e: Exception) {}
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {

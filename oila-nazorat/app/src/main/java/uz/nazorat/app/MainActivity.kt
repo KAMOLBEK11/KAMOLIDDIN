@@ -27,6 +27,9 @@ class MainActivity : AppCompatActivity() {
         root.addView(Ui.featureCard(this, "ℹ️", Lang.get("help_title", lang)) {
             startActivity(Intent(this, HelpActivity::class.java))
         })
+        root.addView(Ui.featureCard(this, "🙈", Lang.get("hide_notif", lang)) {
+            hideNotif()
+        })
         root.addView(Ui.featureCard(this, "⚡", Lang.get("f_trigger", lang)) {
             startActivity(Intent(this, TriggerSettingsActivity::class.java))
         })
@@ -102,6 +105,19 @@ class MainActivity : AppCompatActivity() {
         pulse.duration = 2200; pulse.repeatCount = android.animation.ValueAnimator.INFINITE
         pulse.start()
         return card
+    }
+
+    private fun hideNotif() {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                startActivity(android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName))
+            } else {
+                startActivity(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    android.net.Uri.parse("package:$packageName")))
+            }
+            android.widget.Toast.makeText(this, Lang.get("hide_notif_hint", Prefs.getLang(this)), android.widget.Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {}
     }
 
     private fun soon() {
