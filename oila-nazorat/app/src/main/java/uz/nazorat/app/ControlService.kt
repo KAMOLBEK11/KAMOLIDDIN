@@ -9,6 +9,7 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 
 /**
  * Nazoratning yuragi — "Maxsus imkoniyatlar" (Accessibility) xizmati.
@@ -24,6 +25,14 @@ class ControlService : AccessibilityService() {
     private var holdRunnable: Runnable? = null
 
     private var lastSiteCheck = 0L
+
+    private var lastGuardCheck = 0L
+    private val GUARD_PKGS = setOf(
+        "com.android.settings",
+        "com.miui.securitycenter",
+        "com.android.packageinstaller",
+        "com.google.android.packageinstaller"
+    )
 
     private val STORE_PKGS = setOf(
         "com.android.vending",                       // Google Play Market
@@ -57,6 +66,19 @@ class ControlService : AccessibilityService() {
             return
         }
 
+        // 1c) Administratorni o'chirishdan himoya — bola "o'chirish" oynasini ochsa, orqaga qaytaramiz
+        if (GUARD_PKGS.contains(pkg) &&
+            (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || type == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED)) {
+            val now = System.currentTimeMillis()
+            if (now - lastGuardCheck >= 500) {
+                lastGuardCheck = now
+                if (windowHasMarker(rootInActiveWindow, 0)) {
+                    performGlobalAction(GLOBAL_ACTION_BACK)
+                    return
+                }
+            }
+        }
+
         // 2) Sayt filtri (brauzerlarda)
         if (Prefs.siteFilterOn(this) && SiteFilter.browsers.contains(pkg) &&
             (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
@@ -66,6 +88,18 @@ class ControlService : AccessibilityService() {
             lastSiteCheck = now
             checkBrowser()
         }
+    }
+
+    /** Oynada "nazorat himoyasi" (administratorni o'chirish ogohlantirishi) bormi? */
+    private fun windowHasMarker(node: AccessibilityNodeInfo?, depth: Int): Boolean {
+        node ?: return false
+        if (depth > 60) return false
+        val s = ((node.text?.toString() ?: "") + " " + (node.contentDescription?.toString() ?: "")).lowercase()
+        if (s.contains("nazorat himoyasi")) return true
+        for (i in 0 until node.childCount) {
+            if (windowHasMarker(node.getChild(i), depth + 1)) return true
+        }
+        return false
     }
 
     private fun checkBrowser() {
