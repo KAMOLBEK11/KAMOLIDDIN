@@ -13,9 +13,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: oila-nazorat
     steps:
       - name: Kodni olish
         uses: actions/checkout@v4
@@ -31,31 +28,38 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: APK yig'ish (release, imzosiz)
-        run: gradle assembleRelease --stacktrace
-
-      - name: APK ni saqlash (artifact)
-        uses: actions/upload-artifact@v4
-        with:
-          name: oila-nazorat-apk
-          path: oila-nazorat/app/build/outputs/apk/**/release/*.apk
-          if-no-files-found: error
-
-      - name: APK ni 'apk' tarmog'iga yuklash
-        working-directory: ${{ github.workspace }}
+      - name: Yig'ish va 'apk' tarmog'iga yuklash
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
+          set -e
+          cd oila-nazorat
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/ks.jks"
+            export KEYSTORE_FILE="$RUNNER_TEMP/ks.jks"
+            gradle assembleRelease --stacktrace
+            SUB=release
+          else
+            gradle assembleDebug --stacktrace
+            SUB=debug
+          fi
+          cd "$GITHUB_WORKSPACE"
           BASE=oila-nazorat/app/build/outputs/apk
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          OCHIQ=$(ls $BASE/ochiq/release/*.apk 2>/dev/null | head -1)
-          YASH=$(ls $BASE/yashirin/release/*.apk 2>/dev/null | head -1)
+          OCHIQ=$(ls $BASE/ochiq/$SUB/*.apk | grep -v unsigned | head -1 || ls $BASE/ochiq/$SUB/*.apk | head -1)
+          YASH=$(ls $BASE/yashirin/$SUB/*.apk | grep -v unsigned | head -1 || ls $BASE/yashirin/$SUB/*.apk | head -1)
           cp "$OCHIQ" /tmp/ochiq.apk
           cp "$YASH" /tmp/yashirin.apk
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
           git checkout --orphan apk
           git rm -rf . >/dev/null 2>&1 || true
           mkdir -p out
-          cp /tmp/ochiq.apk out/app-ochiq-unsigned.apk
-          cp /tmp/yashirin.apk out/app-yashirin-unsigned.apk
-          git add -f out/app-ochiq-unsigned.apk out/app-yashirin-unsigned.apk
-          git commit -m "APK ${{ github.sha }}"
+          cp /tmp/ochiq.apk out/app-ochiq.apk
+          cp /tmp/yashirin.apk out/app-yashirin.apk
+          echo "$SUB" > out/BUILD_TYPE.txt
+          git add -f out/app-ochiq.apk out/app-yashirin.apk out/BUILD_TYPE.txt
+          git commit -m "APK ($SUB) ${{ github.sha }}"
           git push -f origin apk
