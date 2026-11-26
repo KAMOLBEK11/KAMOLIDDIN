@@ -31,14 +31,14 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: APK yig'ish
-        run: gradle assembleDebug --stacktrace
+      - name: APK yig'ish (release, imzosiz)
+        run: gradle assembleRelease --stacktrace
 
       - name: APK ni saqlash (artifact)
         uses: actions/upload-artifact@v4
         with:
           name: oila-nazorat-apk
-          path: oila-nazorat/app/build/outputs/apk/**/debug/*.apk
+          path: oila-nazorat/app/build/outputs/apk/**/release/*.apk
           if-no-files-found: error
 
       - name: APK ni 'apk' tarmog'iga yuklash
@@ -47,16 +47,15 @@ jobs:
           BASE=oila-nazorat/app/build/outputs/apk
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          # Ikkala variant APK'sini topamiz
-          OCHIQ=$(ls $BASE/ochiq/debug/*.apk 2>/dev/null | head -1)
-          YASH=$(ls $BASE/yashirin/debug/*.apk 2>/dev/null | head -1)
+          OCHIQ=$(ls $BASE/ochiq/release/*.apk 2>/dev/null | head -1)
+          YASH=$(ls $BASE/yashirin/release/*.apk 2>/dev/null | head -1)
           cp "$OCHIQ" /tmp/ochiq.apk
           cp "$YASH" /tmp/yashirin.apk
           git checkout --orphan apk
           git rm -rf . >/dev/null 2>&1 || true
           mkdir -p out
-          cp /tmp/ochiq.apk out/app-ochiq.apk
-          cp /tmp/yashirin.apk out/app-yashirin.apk
-          git add -f out/app-ochiq.apk out/app-yashirin.apk
+          cp /tmp/ochiq.apk out/app-ochiq-unsigned.apk
+          cp /tmp/yashirin.apk out/app-yashirin-unsigned.apk
+          git add -f out/app-ochiq-unsigned.apk out/app-yashirin-unsigned.apk
           git commit -m "APK ${{ github.sha }}"
           git push -f origin apk
