@@ -47,9 +47,8 @@ class PermissionsActivity : AppCompatActivity() {
             open(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
         })
         root.addView(permCard("🔌", "p_vpn", android.net.VpnService.prepare(this) == null) {
-            val i = android.net.VpnService.prepare(this)
-            if (i != null) startActivity(i)
-            else android.widget.Toast.makeText(this, "✅", android.widget.Toast.LENGTH_SHORT).show()
+            // VPN ruxsati "Internetdan cheklash" bo'limidagi kalit orqali beriladi (to'g'ri oqim)
+            startActivity(Intent(this, InternetActivity::class.java))
         })
         root.addView(permCard("📍", "p_location", locGranted()) {
             open(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
